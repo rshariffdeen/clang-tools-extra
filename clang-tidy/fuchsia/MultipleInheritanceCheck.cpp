@@ -30,7 +30,6 @@ AST_MATCHER(CXXRecordDecl, hasBases) {
 // previously.
 void MultipleInheritanceCheck::addNodeToInterfaceMap(const CXXRecordDecl *Node,
                                                      bool isInterface) {
-  assert(Node->getIdentifier());
   StringRef Name = Node->getIdentifier()->getName();
   InterfaceMap.insert(std::make_pair(Name, isInterface));
 }
@@ -40,7 +39,6 @@ void MultipleInheritanceCheck::addNodeToInterfaceMap(const CXXRecordDecl *Node,
 // interface status for the current node is not yet known.
 bool MultipleInheritanceCheck::getInterfaceStatus(const CXXRecordDecl *Node,
                                                   bool &isInterface) const {
-  assert(Node->getIdentifier());
   StringRef Name = Node->getIdentifier()->getName();
   llvm::StringMapConstIterator<bool> Pair = InterfaceMap.find(Name);
   if (Pair == InterfaceMap.end())
@@ -61,9 +59,6 @@ bool MultipleInheritanceCheck::isCurrentClassInterface(
 }
 
 bool MultipleInheritanceCheck::isInterface(const CXXRecordDecl *Node) {
-  if (!Node->getIdentifier())
-    return false;
-
   // Short circuit the lookup if we have analyzed this record before.
   bool PreviousIsInterfaceResult;
   if (getInterfaceStatus(Node, PreviousIsInterfaceResult))
@@ -120,8 +115,9 @@ void MultipleInheritanceCheck::check(const MatchFinder::MatchResult &Result) {
     }
 
     if (NumConcrete > 1) {
-      diag(D->getBeginLoc(), "inheriting mulitple classes that aren't "
-                             "pure virtual is discouraged");
+      diag(D->getLocStart(),
+           "inheriting mulitple classes that aren't "
+           "pure virtual is discouraged");
     }
   }
 }

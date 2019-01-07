@@ -177,7 +177,7 @@ void SuspiciousStringCompareCheck::check(
         Call->getRParenLoc(), 0, Result.Context->getSourceManager(),
         getLangOpts());
 
-    diag(Call->getBeginLoc(),
+    diag(Call->getLocStart(),
          "function %0 is called without explicitly comparing result")
         << Decl << FixItHint::CreateInsertion(EndLoc, " != 0");
   }
@@ -186,30 +186,29 @@ void SuspiciousStringCompareCheck::check(
     SourceLocation EndLoc = Lexer::getLocForEndOfToken(
         Call->getRParenLoc(), 0, Result.Context->getSourceManager(),
         getLangOpts());
-    SourceLocation NotLoc = E->getBeginLoc();
+    SourceLocation NotLoc = E->getLocStart();
 
-    diag(Call->getBeginLoc(),
+    diag(Call->getLocStart(),
          "function %0 is compared using logical not operator")
-        << Decl
-        << FixItHint::CreateRemoval(
-               CharSourceRange::getTokenRange(NotLoc, NotLoc))
+        << Decl << FixItHint::CreateRemoval(
+                       CharSourceRange::getTokenRange(NotLoc, NotLoc))
         << FixItHint::CreateInsertion(EndLoc, " == 0");
   }
 
   if (Result.Nodes.getNodeAs<Stmt>("invalid-comparison")) {
-    diag(Call->getBeginLoc(),
+    diag(Call->getLocStart(),
          "function %0 is compared to a suspicious constant")
         << Decl;
   }
 
   if (const auto *BinOp =
           Result.Nodes.getNodeAs<BinaryOperator>("suspicious-operator")) {
-    diag(Call->getBeginLoc(), "results of function %0 used by operator '%1'")
+    diag(Call->getLocStart(), "results of function %0 used by operator '%1'")
         << Decl << BinOp->getOpcodeStr();
   }
 
   if (Result.Nodes.getNodeAs<Stmt>("invalid-conversion")) {
-    diag(Call->getBeginLoc(), "function %0 has suspicious implicit cast")
+    diag(Call->getLocStart(), "function %0 has suspicious implicit cast")
         << Decl;
   }
 }

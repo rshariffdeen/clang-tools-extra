@@ -13,7 +13,6 @@
 #include "clang/AST/Comment.h"
 #include "clang/Index/USRGeneration.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Support/Error.h"
 
 using clang::comments::FullComment;
 
@@ -29,24 +28,15 @@ template <typename T> bool MapASTVisitor::mapDecl(const T *D) {
   if (D->getASTContext().getSourceManager().isInSystemHeader(D->getLocation()))
     return true;
 
-  // Skip function-internal decls.
-  if (D->getParentFunctionOrMethod())
-    return true;
-
   llvm::SmallString<128> USR;
   // If there is an error generating a USR for the decl, skip this decl.
   if (index::generateUSRForDecl(D, USR))
     return true;
 
-  auto I = serialize::emitInfo(
-      D, getComment(D, D->getASTContext()), getLine(D, D->getASTContext()),
-      getFile(D, D->getASTContext()), CDCtx.PublicOnly);
-
-  // A null in place of I indicates that the serializer is skipping this decl
-  // for some reason (e.g. we're only reporting public decls).
-  if (I)
-    CDCtx.ECtx->reportResult(llvm::toHex(llvm::toStringRef(I->USR)),
-                       serialize::serialize(I));
+  ECtx->reportResult(llvm::toHex(llvm::toStringRef(serialize::hashUSR(USR))),
+                     serialize::emitInfo(D, getComment(D, D->getASTContext()),
+                                         getLine(D, D->getASTContext()),
+                                         getFile(D, D->getASTContext())));
   return true;
 }
 
@@ -82,13 +72,13 @@ MapASTVisitor::getComment(const NamedDecl *D, const ASTContext &Context) const {
 
 int MapASTVisitor::getLine(const NamedDecl *D,
                            const ASTContext &Context) const {
-  return Context.getSourceManager().getPresumedLoc(D->getBeginLoc()).getLine();
+  return Context.getSourceManager().getPresumedLoc(D->getLocStart()).getLine();
 }
 
 llvm::StringRef MapASTVisitor::getFile(const NamedDecl *D,
                                        const ASTContext &Context) const {
   return Context.getSourceManager()
-      .getPresumedLoc(D->getBeginLoc())
+      .getPresumedLoc(D->getLocStart())
       .getFilename();
 }
 

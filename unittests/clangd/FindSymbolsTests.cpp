@@ -14,8 +14,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using namespace llvm;
-
 namespace clang {
 namespace clangd {
 
@@ -25,7 +23,6 @@ using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
-using ::testing::Field;
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
@@ -40,21 +37,13 @@ MATCHER_P(QName, Name, "") {
     return arg.name == Name;
   return (arg.containerName + "::" + arg.name) == Name;
 }
-MATCHER_P(WithName, N, "") { return arg.name == N; }
 MATCHER_P(WithKind, Kind, "") { return arg.kind == Kind; }
 MATCHER_P(SymRange, Range, "") { return arg.location.range == Range; }
 
-// GMock helpers for matching DocumentSymbol.
-MATCHER_P(SymNameRange, Range, "") { return arg.selectionRange == Range; }
-template <class... ChildMatchers>
-testing::Matcher<DocumentSymbol> Children(ChildMatchers... ChildrenM) {
-  return Field(&DocumentSymbol::children, ElementsAre(ChildrenM...));
-}
-
 ClangdServer::Options optsForTests() {
   auto ServerOpts = ClangdServer::optsForTest();
-  ServerOpts.WorkspaceRoot = testRoot();
   ServerOpts.BuildDynamicSymbolIndex = true;
+  ServerOpts.URISchemes = {"unittest", "file"};
   return ServerOpts;
 }
 
@@ -64,6 +53,7 @@ public:
       : Server(CDB, FSProvider, DiagConsumer, optsForTests()) {
     // Make sure the test root directory is created.
     FSProvider.Files[testPath("unused")] = "";
+    Server.setRootPath(testRoot());
   }
 
 protected:
@@ -273,7 +263,7 @@ TEST_F(WorkspaceSymbolsTest, Enums) {
 TEST_F(WorkspaceSymbolsTest, Ranking) {
   addFile("foo.h", R"cpp(
       namespace ns{}
-      void func();
+      function func();
       )cpp");
   addFile("foo.cpp", R"cpp(
       #include "foo.h"
@@ -311,7 +301,7 @@ protected:
   IgnoreDiagnostics DiagConsumer;
   ClangdServer Server;
 
-  std::vector<DocumentSymbol> getSymbols(PathRef File) {
+  std::vector<SymbolInformation> getSymbols(PathRef File) {
     EXPECT_TRUE(Server.blockUntilIdleForTest()) << "Waiting for preamble";
     auto SymbolInfos = runDocumentSymbols(Server, File);
     EXPECT_TRUE(bool(SymbolInfos)) << "documentSymbols returned an error";
@@ -374,46 +364,31 @@ TEST_F(DocumentSymbolsTest, BasicSymbols) {
     )");
 
   addFile(FilePath, Main.code());
-  EXPECT_THAT(
-      getSymbols(FilePath),
-      ElementsAreArray(
-          {AllOf(WithName("Foo"), WithKind(SymbolKind::Class), Children()),
-           AllOf(WithName("Foo"), WithKind(SymbolKind::Class),
-                 Children(AllOf(WithName("Foo"), WithKind(SymbolKind::Method),
-                                Children()),
-                          AllOf(WithName("Foo"), WithKind(SymbolKind::Method),
-                                Children()),
-                          AllOf(WithName("f"), WithKind(SymbolKind::Method),
-                                Children()),
-                          AllOf(WithName("operator="),
-                                WithKind(SymbolKind::Method), Children()),
-                          AllOf(WithName("~Foo"), WithKind(SymbolKind::Method),
-                                Children()),
-                          AllOf(WithName("Nested"), WithKind(SymbolKind::Class),
-                                Children(AllOf(WithName("f"),
-                                               WithKind(SymbolKind::Method),
-                                               Children()))))),
-           AllOf(WithName("Friend"), WithKind(SymbolKind::Class), Children()),
-           AllOf(WithName("f1"), WithKind(SymbolKind::Function), Children()),
-           AllOf(WithName("f2"), WithKind(SymbolKind::Function), Children()),
-           AllOf(WithName("KInt"), WithKind(SymbolKind::Variable), Children()),
-           AllOf(WithName("kStr"), WithKind(SymbolKind::Variable), Children()),
-           AllOf(WithName("f1"), WithKind(SymbolKind::Function), Children()),
-           AllOf(WithName("foo"), WithKind(SymbolKind::Namespace),
-                 Children(
-                     AllOf(WithName("int32"), WithKind(SymbolKind::Class),
-                           Children()),
-                     AllOf(WithName("int32_t"), WithKind(SymbolKind::Class),
-                           Children()),
-                     AllOf(WithName("v1"), WithKind(SymbolKind::Variable),
-                           Children()),
-                     AllOf(WithName("bar"), WithKind(SymbolKind::Namespace),
-                           Children(AllOf(WithName("v2"),
-                                          WithKind(SymbolKind::Variable),
-                                          Children()))),
-                     AllOf(WithName("baz"), WithKind(SymbolKind::Namespace),
-                           Children()),
-                     AllOf(WithName("v2"), WithKind(SymbolKind::Variable))))}));
+  EXPECT_THAT(getSymbols(FilePath),
+              ElementsAreArray(
+                  {AllOf(QName("Foo"), WithKind(SymbolKind::Class)),
+                   AllOf(QName("Foo"), WithKind(SymbolKind::Class)),
+                   AllOf(QName("Foo::Foo"), WithKind(SymbolKind::Method)),
+                   AllOf(QName("Foo::Foo"), WithKind(SymbolKind::Method)),
+                   AllOf(QName("Foo::f"), WithKind(SymbolKind::Method)),
+                   AllOf(QName("f1"), WithKind(SymbolKind::Function)),
+                   AllOf(QName("Foo::operator="), WithKind(SymbolKind::Method)),
+                   AllOf(QName("Foo::~Foo"), WithKind(SymbolKind::Method)),
+                   AllOf(QName("Foo::Nested"), WithKind(SymbolKind::Class)),
+                   AllOf(QName("Foo::Nested::f"), WithKind(SymbolKind::Method)),
+                   AllOf(QName("Friend"), WithKind(SymbolKind::Class)),
+                   AllOf(QName("f1"), WithKind(SymbolKind::Function)),
+                   AllOf(QName("f2"), WithKind(SymbolKind::Function)),
+                   AllOf(QName("KInt"), WithKind(SymbolKind::Variable)),
+                   AllOf(QName("kStr"), WithKind(SymbolKind::Variable)),
+                   AllOf(QName("f1"), WithKind(SymbolKind::Function)),
+                   AllOf(QName("foo"), WithKind(SymbolKind::Namespace)),
+                   AllOf(QName("foo::int32"), WithKind(SymbolKind::Class)),
+                   AllOf(QName("foo::int32_t"), WithKind(SymbolKind::Class)),
+                   AllOf(QName("foo::v1"), WithKind(SymbolKind::Variable)),
+                   AllOf(QName("foo::bar"), WithKind(SymbolKind::Namespace)),
+                   AllOf(QName("foo::bar::v2"), WithKind(SymbolKind::Variable)),
+                   AllOf(QName("foo::baz"), WithKind(SymbolKind::Namespace))}));
 }
 
 TEST_F(DocumentSymbolsTest, DeclarationDefinition) {
@@ -428,18 +403,17 @@ TEST_F(DocumentSymbolsTest, DeclarationDefinition) {
 
   addFile(FilePath, Main.code());
   EXPECT_THAT(getSymbols(FilePath),
-              ElementsAre(AllOf(WithName("Foo"), WithKind(SymbolKind::Class),
-                                Children(AllOf(
-                                    WithName("f"), WithKind(SymbolKind::Method),
-                                    SymNameRange(Main.range("decl"))))),
-                          AllOf(WithName("f"), WithKind(SymbolKind::Method),
-                                SymNameRange(Main.range("def")))));
+              ElementsAre(AllOf(QName("Foo"), WithKind(SymbolKind::Class)),
+                          AllOf(QName("Foo::f"), WithKind(SymbolKind::Method),
+                                SymRange(Main.range("decl"))),
+                          AllOf(QName("Foo::f"), WithKind(SymbolKind::Method),
+                                SymRange(Main.range("def")))));
 }
 
 TEST_F(DocumentSymbolsTest, ExternSymbol) {
   std::string FilePath = testPath("foo.cpp");
   addFile(testPath("foo.h"), R"cpp(
-      extern int var;
+      extern int var = 2;
       )cpp");
   addFile(FilePath, R"cpp(
       #include "foo.h"
@@ -456,7 +430,7 @@ TEST_F(DocumentSymbolsTest, NoLocals) {
         struct LocalClass {};
         int local_var;
       })cpp");
-  EXPECT_THAT(getSymbols(FilePath), ElementsAre(WithName("test")));
+  EXPECT_THAT(getSymbols(FilePath), ElementsAre(QName("test")));
 }
 
 TEST_F(DocumentSymbolsTest, Unnamed) {
@@ -469,16 +443,13 @@ TEST_F(DocumentSymbolsTest, Unnamed) {
       )cpp");
   EXPECT_THAT(
       getSymbols(FilePath),
-      ElementsAre(
-          AllOf(WithName("(anonymous struct)"), WithKind(SymbolKind::Struct),
-                Children(AllOf(WithName("InUnnamed"),
-                               WithKind(SymbolKind::Field), Children()))),
-          AllOf(WithName("UnnamedStruct"), WithKind(SymbolKind::Variable),
-                Children())));
+      ElementsAre(AllOf(QName("UnnamedStruct"), WithKind(SymbolKind::Variable)),
+                  AllOf(QName("(anonymous struct)::InUnnamed"),
+                        WithKind(SymbolKind::Field))));
 }
 
 TEST_F(DocumentSymbolsTest, InHeaderFile) {
-  addFile(testPath("bar.h"), R"cpp(
+  addFile("bar.h", R"cpp(
       int foo() {
       }
       )cpp");
@@ -488,49 +459,26 @@ TEST_F(DocumentSymbolsTest, InHeaderFile) {
       int test() {
       }
       )cpp");
-  addFile(testPath("foo.cpp"), R"cpp(
+  addFile("foo.cpp", R"cpp(
       #include "foo.h"
       )cpp");
-  EXPECT_THAT(getSymbols(FilePath), ElementsAre(WithName("test")));
+  EXPECT_THAT(getSymbols(FilePath), ElementsAre(QName("test")));
 }
 
 TEST_F(DocumentSymbolsTest, Template) {
   std::string FilePath = testPath("foo.cpp");
   addFile(FilePath, R"(
+    // Primary templates and specializations are included but instantiations
+    // are not.
     template <class T> struct Tmpl {T x = 0;};
-    template <> struct Tmpl<int> {
-      int y = 0;
-    };
+    template <> struct Tmpl<int> {};
     extern template struct Tmpl<float>;
     template struct Tmpl<double>;
-
-    template <class T, class U, class Z = float>
-    int funcTmpl(U a);
-    template <>
-    int funcTmpl<int>(double a);
-
-    template <class T, class U = double>
-    int varTmpl = T();
-    template <>
-    double varTmpl<int> = 10.0;
   )");
-  EXPECT_THAT(
-      getSymbols(FilePath),
-      ElementsAre(
-          AllOf(WithName("Tmpl"), WithKind(SymbolKind::Struct),
-                Children(AllOf(WithName("x"), WithKind(SymbolKind::Field)))),
-          AllOf(WithName("Tmpl<int>"), WithKind(SymbolKind::Struct),
-                Children(WithName("y"))),
-          AllOf(WithName("Tmpl<float>"), WithKind(SymbolKind::Struct),
-                Children()),
-          AllOf(WithName("Tmpl<double>"), WithKind(SymbolKind::Struct),
-                Children()),
-          AllOf(WithName("funcTmpl"), Children()),
-          // FIXME(ibiryukov): template args should be <int> to match the code.
-          AllOf(WithName("funcTmpl<int, double, float>"), Children()),
-          AllOf(WithName("varTmpl"), Children()),
-          // FIXME(ibiryukov): template args should be <int> to match the code.
-          AllOf(WithName("varTmpl<int, double>"), Children())));
+  EXPECT_THAT(getSymbols(FilePath),
+              ElementsAre(AllOf(QName("Tmpl"), WithKind(SymbolKind::Struct)),
+                          AllOf(QName("Tmpl::x"), WithKind(SymbolKind::Field)),
+                          AllOf(QName("Tmpl"), WithKind(SymbolKind::Struct))));
 }
 
 TEST_F(DocumentSymbolsTest, Namespaces) {
@@ -560,15 +508,10 @@ TEST_F(DocumentSymbolsTest, Namespaces) {
       )cpp");
   EXPECT_THAT(
       getSymbols(FilePath),
-      ElementsAreArray<testing::Matcher<DocumentSymbol>>(
-          {AllOf(WithName("ans1"),
-                 Children(AllOf(WithName("ai1"), Children()),
-                          AllOf(WithName("ans2"), Children(WithName("ai2"))))),
-           AllOf(WithName("(anonymous namespace)"), Children(WithName("test"))),
-           AllOf(WithName("na"),
-                 Children(AllOf(WithName("nb"), Children(WithName("Foo"))))),
-           AllOf(WithName("na"),
-                 Children(AllOf(WithName("nb"), Children(WithName("Bar")))))}));
+      ElementsAreArray({QName("ans1"), QName("ans1::ai1"), QName("ans1::ans2"),
+                        QName("ans1::ans2::ai2"), QName("test"), QName("na"),
+                        QName("na::nb"), QName("na::Foo"), QName("na"),
+                        QName("na::nb"), QName("na::Bar")}));
 }
 
 TEST_F(DocumentSymbolsTest, Enums) {
@@ -589,14 +532,10 @@ TEST_F(DocumentSymbolsTest, Enums) {
       };
       }
     )");
-  EXPECT_THAT(
-      getSymbols(FilePath),
-      ElementsAre(
-          AllOf(WithName("(anonymous enum)"), Children(WithName("Red"))),
-          AllOf(WithName("Color"), Children(WithName("Green"))),
-          AllOf(WithName("Color2"), Children(WithName("Yellow"))),
-          AllOf(WithName("ns"), Children(AllOf(WithName("(anonymous enum)"),
-                                               Children(WithName("Black")))))));
+  EXPECT_THAT(getSymbols(FilePath),
+              ElementsAre(QName("Red"), QName("Color"), QName("Green"),
+                          QName("Color2"), QName("Color2::Yellow"), QName("ns"),
+                          QName("ns::Black")));
 }
 
 TEST_F(DocumentSymbolsTest, FromMacro) {
@@ -615,43 +554,8 @@ TEST_F(DocumentSymbolsTest, FromMacro) {
   addFile(FilePath, Main.code());
   EXPECT_THAT(
       getSymbols(FilePath),
-      ElementsAre(
-          AllOf(WithName("abc_Test"), SymNameRange(Main.range("expansion"))),
-          AllOf(WithName("Test"), SymNameRange(Main.range("spelling")))));
-}
-
-TEST_F(DocumentSymbolsTest, FuncTemplates) {
-  std::string FilePath = testPath("foo.cpp");
-  Annotations Source(R"cpp(
-    template <class T>
-    T foo() {}
-
-    auto x = foo<int>();
-    auto y = foo<double>()
-  )cpp");
-  addFile(FilePath, Source.code());
-  // Make sure we only see the template declaration, not instantiations.
-  EXPECT_THAT(getSymbols(FilePath),
-              ElementsAre(WithName("foo"), WithName("x"), WithName("y")));
-}
-
-TEST_F(DocumentSymbolsTest, UsingDirectives) {
-  std::string FilePath = testPath("foo.cpp");
-  Annotations Source(R"cpp(
-    namespace ns {
-      int foo;
-    }
-
-    namespace ns_alias = ns;
-
-    using namespace ::ns;     // check we don't loose qualifiers.
-    using namespace ns_alias; // and namespace aliases.
-  )cpp");
-  addFile(FilePath, Source.code());
-  EXPECT_THAT(getSymbols(FilePath),
-              ElementsAre(WithName("ns"), WithName("ns_alias"),
-                          WithName("using namespace ::ns"),
-                          WithName("using namespace ns_alias")));
+      ElementsAre(AllOf(QName("abc_Test"), SymRange(Main.range("expansion"))),
+                  AllOf(QName("Test"), SymRange(Main.range("spelling")))));
 }
 
 } // namespace clangd

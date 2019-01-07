@@ -106,7 +106,7 @@ void StringConstructorCheck::check(const MatchFinder::MatchResult &Result) {
   const ASTContext &Ctx = *Result.Context;
   const auto *E = Result.Nodes.getNodeAs<CXXConstructExpr>("constructor");
   assert(E && "missing constructor expression");
-  SourceLocation Loc = E->getBeginLoc();
+  SourceLocation Loc = E->getLocStart();
 
   if (Result.Nodes.getNodeAs<Expr>("swapped-parameter")) {
     const Expr *P0 = E->getArg(0);

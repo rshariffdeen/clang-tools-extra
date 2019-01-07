@@ -18,7 +18,6 @@ target_link_libraries(modularize
   clangDriver
   clangFrontend
   clangLex
-  clangSerialization
   clangTooling
   )
 

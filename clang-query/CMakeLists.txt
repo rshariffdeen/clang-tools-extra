@@ -13,7 +13,6 @@ add_clang_library(clangQuery
   clangBasic
   clangDynamicASTMatchers
   clangFrontend
-  clangSerialization
   )
 
 add_subdirectory(tool)

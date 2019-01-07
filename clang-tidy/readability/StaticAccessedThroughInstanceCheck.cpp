@@ -51,7 +51,7 @@ void StaticAccessedThroughInstanceCheck::check(
   const auto *MemberExpression =
       Result.Nodes.getNodeAs<MemberExpr>("memberExpression");
 
-  if (MemberExpression->getBeginLoc().isMacroID())
+  if (MemberExpression->getLocStart().isMacroID())
     return;
 
   const Expr *BaseExpr = MemberExpression->getBase();
@@ -71,7 +71,7 @@ void StaticAccessedThroughInstanceCheck::check(
   std::string BaseTypeName =
       BaseType.getAsString(PrintingPolicyWithSupressedTag);
 
-  SourceLocation MemberExprStartLoc = MemberExpression->getBeginLoc();
+  SourceLocation MemberExprStartLoc = MemberExpression->getLocStart();
   auto Diag =
       diag(MemberExprStartLoc, "static member accessed through instance");
 

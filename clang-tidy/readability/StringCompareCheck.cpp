@@ -51,7 +51,7 @@ void StringCompareCheck::registerMatchers(MatchFinder *Finder) {
 
 void StringCompareCheck::check(const MatchFinder::MatchResult &Result) {
   if (const auto *Matched = Result.Nodes.getNodeAs<Stmt>("match1")) {
-    diag(Matched->getBeginLoc(), CompareMessage);
+    diag(Matched->getLocStart(), CompareMessage);
     return;
   }
 
@@ -63,10 +63,10 @@ void StringCompareCheck::check(const MatchFinder::MatchResult &Result) {
       const auto *Str2 = Result.Nodes.getNodeAs<Stmt>("str2");
       const auto *Compare = Result.Nodes.getNodeAs<Stmt>("compare");
 
-      auto Diag = diag(Matched->getBeginLoc(), CompareMessage);
+      auto Diag = diag(Matched->getLocStart(), CompareMessage);
 
       if (Str1->isArrow())
-        Diag << FixItHint::CreateInsertion(Str1->getBeginLoc(), "*");
+        Diag << FixItHint::CreateInsertion(Str1->getLocStart(), "*");
 
       Diag << tooling::fixit::createReplacement(*Zero, *Str2, Ctx)
            << tooling::fixit::createReplacement(*Compare, *Str1->getBase(),

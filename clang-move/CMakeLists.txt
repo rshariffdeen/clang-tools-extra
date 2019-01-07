@@ -14,7 +14,6 @@ add_clang_library(clangMove
   clangFormat
   clangFrontend
   clangLex
-  clangSerialization
   clangTooling
   clangToolingCore
   )

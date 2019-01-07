@@ -26,7 +26,7 @@ void MultiwayPathsCoveredCheck::storeOptions(
 void MultiwayPathsCoveredCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       switchStmt(
-          hasCondition(expr(
+          hasCondition(allOf(
               // Match on switch statements that have either a bit-field or
               // an integer condition. The ordering in 'anyOf()' is
               // important because the last condition is the most general.
@@ -43,9 +43,10 @@ void MultiwayPathsCoveredCheck::registerMatchers(MatchFinder *Finder) {
 
   // This option is noisy, therefore matching is configurable.
   if (WarnOnMissingElse) {
-    Finder->addMatcher(ifStmt(hasParent(ifStmt()), unless(hasElse(anything())))
-                           .bind("else-if"),
-                       this);
+    Finder->addMatcher(
+        ifStmt(allOf(hasParent(ifStmt()), unless(hasElse(anything()))))
+            .bind("else-if"),
+        this);
   }
 }
 
@@ -93,7 +94,7 @@ static std::size_t getNumberOfPossibleValues(QualType T,
 void MultiwayPathsCoveredCheck::check(const MatchFinder::MatchResult &Result) {
   if (const auto *ElseIfWithoutElse =
           Result.Nodes.getNodeAs<IfStmt>("else-if")) {
-    diag(ElseIfWithoutElse->getBeginLoc(),
+    diag(ElseIfWithoutElse->getLocStart(),
          "potentially uncovered codepath; add an ending else statement");
     return;
   }
@@ -119,7 +120,7 @@ void MultiwayPathsCoveredCheck::check(const MatchFinder::MatchResult &Result) {
   // FIXME: Evaluate, if emitting a fix-it to simplify that statement is 
   // reasonable.
   if (!SwitchHasDefault && SwitchCaseCount == 0) {
-    diag(Switch->getBeginLoc(),
+    diag(Switch->getLocStart(),
          "switch statement without labels has no effect");
     return;
   }
@@ -131,7 +132,7 @@ void MultiwayPathsCoveredCheck::handleSwitchWithDefault(
   assert(CaseCount > 0 && "Switch statement with supposedly one default "
                           "branch did not contain any case labels");
   if (CaseCount == 1 || CaseCount == 2)
-    diag(Switch->getBeginLoc(),
+    diag(Switch->getLocStart(),
          CaseCount == 1
              ? "degenerated switch with default label only"
              : "switch could be better written as an if/else statement");
@@ -171,7 +172,7 @@ void MultiwayPathsCoveredCheck::handleSwitchWithoutDefault(
 
   // FIXME: Transform the 'switch' into an 'if' for CaseCount == 1.
   if (CaseCount < MaxPathsPossible)
-    diag(Switch->getBeginLoc(),
+    diag(Switch->getLocStart(),
          CaseCount == 1 ? "switch with only one case; use an if statement"
                         : "potential uncovered code path; add a default label");
 }

@@ -21,16 +21,12 @@ void ProBoundsPointerArithmeticCheck::registerMatchers(MatchFinder *Finder) {
   if (!getLangOpts().CPlusPlus)
     return;
 
-  const auto AllPointerTypes = anyOf(
-      hasType(pointerType()), hasType(autoType(hasDeducedType(pointerType()))),
-      hasType(decltypeType(hasUnderlyingType(pointerType()))));
-
   // Flag all operators +, -, +=, -=, ++, -- that result in a pointer
   Finder->addMatcher(
       binaryOperator(
           anyOf(hasOperatorName("+"), hasOperatorName("-"),
                 hasOperatorName("+="), hasOperatorName("-=")),
-          AllPointerTypes,
+          hasType(pointerType()),
           unless(hasLHS(ignoringImpCasts(declRefExpr(to(isImplicit()))))))
           .bind("expr"),
       this);
@@ -45,7 +41,7 @@ void ProBoundsPointerArithmeticCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       arraySubscriptExpr(
           hasBase(ignoringImpCasts(
-              anyOf(AllPointerTypes,
+              anyOf(hasType(pointerType()),
                     hasType(decayedType(hasDecayedType(pointerType())))))))
           .bind("expr"),
       this);

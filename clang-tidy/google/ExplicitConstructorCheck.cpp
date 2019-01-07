@@ -118,7 +118,7 @@ void ExplicitConstructorCheck::check(const MatchFinder::MatchResult &Result) {
     };
     SourceRange ExplicitTokenRange =
         FindToken(*Result.SourceManager, getLangOpts(),
-                  Ctor->getOuterLocStart(), Ctor->getEndLoc(), isKWExplicit);
+                  Ctor->getOuterLocStart(), Ctor->getLocEnd(), isKWExplicit);
     StringRef ConstructorDescription;
     if (Ctor->isMoveConstructor())
       ConstructorDescription = "move";

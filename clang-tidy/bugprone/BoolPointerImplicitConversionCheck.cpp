@@ -20,11 +20,11 @@ void BoolPointerImplicitConversionCheck::registerMatchers(MatchFinder *Finder) {
   // condition. Filter negations.
   Finder->addMatcher(
       ifStmt(hasCondition(findAll(implicitCastExpr(
-                 unless(hasParent(unaryOperator(hasOperatorName("!")))),
-                 hasSourceExpression(
-                     expr(hasType(pointerType(pointee(booleanType()))),
-                          ignoringParenImpCasts(declRefExpr().bind("expr")))),
-                 hasCastKind(CK_PointerToBoolean)))),
+                 allOf(unless(hasParent(unaryOperator(hasOperatorName("!")))),
+                       hasSourceExpression(expr(
+                           hasType(pointerType(pointee(booleanType()))),
+                           ignoringParenImpCasts(declRefExpr().bind("expr")))),
+                       hasCastKind(CK_PointerToBoolean))))),
              unless(isInTemplateInstantiation()))
           .bind("if"),
       this);
@@ -36,7 +36,7 @@ void BoolPointerImplicitConversionCheck::check(
   auto *Var = Result.Nodes.getNodeAs<DeclRefExpr>("expr");
 
   // Ignore macros.
-  if (Var->getBeginLoc().isMacroID())
+  if (Var->getLocStart().isMacroID())
     return;
 
   // Only allow variable accesses for now, no function calls or member exprs.
@@ -63,9 +63,9 @@ void BoolPointerImplicitConversionCheck::check(
            .empty())
     return;
 
-  diag(Var->getBeginLoc(), "dubious check of 'bool *' against 'nullptr', did "
+  diag(Var->getLocStart(), "dubious check of 'bool *' against 'nullptr', did "
                            "you mean to dereference it?")
-      << FixItHint::CreateInsertion(Var->getBeginLoc(), "*");
+      << FixItHint::CreateInsertion(Var->getLocStart(), "*");
 }
 
 } // namespace bugprone

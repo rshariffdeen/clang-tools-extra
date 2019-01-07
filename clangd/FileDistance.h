@@ -37,9 +37,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_FILEDISTANCE_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_FILEDISTANCE_H
-
 #include "URI.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseMapInfo.h"
@@ -48,16 +45,14 @@
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/StringSaver.h"
-#include <memory>
 
 namespace clang {
 namespace clangd {
 
 struct FileDistanceOptions {
-  unsigned UpCost = 2;                    // |foo/bar.h -> foo|
-  unsigned DownCost = 1;                  // |foo -> foo/bar.h|
-  unsigned IncludeCost = 2;               // |foo.cc -> included_header.h|
-  bool AllowDownTraversalFromRoot = true; // | / -> /a |
+  unsigned UpCost = 2;      // |foo/bar.h -> foo|
+  unsigned DownCost = 1;    // |foo -> foo/bar.h|
+  unsigned IncludeCost = 2; // |foo.cc -> included_header.h|
 };
 
 struct SourceParams {
@@ -71,8 +66,7 @@ struct SourceParams {
 // This object should be reused, it memoizes intermediate computations.
 class FileDistance {
 public:
-  static constexpr unsigned Unreachable = std::numeric_limits<unsigned>::max();
-  static const llvm::hash_code RootHash;
+  static constexpr unsigned kUnreachable = std::numeric_limits<unsigned>::max();
 
   FileDistance(llvm::StringMap<SourceParams> Sources,
                const FileDistanceOptions &Opts = {});
@@ -92,7 +86,6 @@ private:
 // comparison on the bodies.
 class URIDistance {
 public:
-  // \p Sources must contain absolute paths, not URIs.
   URIDistance(llvm::StringMap<SourceParams> Sources,
               const FileDistanceOptions &Opts = {})
       : Sources(Sources), Opts(Opts) {}
@@ -112,20 +105,5 @@ private:
   FileDistanceOptions Opts;
 };
 
-/// Support lookups like FileDistance, but the lookup keys are symbol scopes.
-/// For example, a scope "na::nb::" is converted to "/na/nb".
-class ScopeDistance {
-public:
-  /// QueryScopes[0] is the preferred scope.
-  ScopeDistance(llvm::ArrayRef<std::string> QueryScopes);
-
-  unsigned distance(llvm::StringRef SymbolScope);
-
-private:
-  FileDistance Distance;
-};
-
 } // namespace clangd
 } // namespace clang
-
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_FILEDISTANCE_H

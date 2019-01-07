@@ -73,7 +73,7 @@ public:
     // is already nested NestingThreshold levels deep, record the start location
     // of this new compound statement.
     if (CurrentNestingLevel == Info.NestingThreshold)
-      Info.NestingThresholders.push_back(Node->getBeginLoc());
+      Info.NestingThresholders.push_back(Node->getLocStart());
 
     ++CurrentNestingLevel;
     Base::TraverseCompoundStmt(Node);
@@ -162,9 +162,9 @@ void FunctionSizeCheck::check(const MatchFinder::MatchResult &Result) {
   // Count the lines including whitespace and comments. Really simple.
   if (const Stmt *Body = Func->getBody()) {
     SourceManager *SM = Result.SourceManager;
-    if (SM->isWrittenInSameFile(Body->getBeginLoc(), Body->getEndLoc())) {
-      FI.Lines = SM->getSpellingLineNumber(Body->getEndLoc()) -
-                 SM->getSpellingLineNumber(Body->getBeginLoc());
+    if (SM->isWrittenInSameFile(Body->getLocStart(), Body->getLocEnd())) {
+      FI.Lines = SM->getSpellingLineNumber(Body->getLocEnd()) -
+                 SM->getSpellingLineNumber(Body->getLocStart());
     }
   }
 

@@ -87,34 +87,36 @@ void OwningMemoryCheck::registerMatchers(MatchFinder *Finder) {
   // resources. This check assumes that all pointer arguments of a legacy
   // functions shall be 'gsl::owner<>'.
   Finder->addMatcher(
-      callExpr(callee(LegacyOwnerConsumers),
-               hasAnyArgument(expr(unless(ignoringImpCasts(ConsideredOwner)),
-                                   hasType(pointerType()))))
+      callExpr(
+          allOf(callee(LegacyOwnerConsumers),
+                hasAnyArgument(allOf(unless(ignoringImpCasts(ConsideredOwner)),
+                                     hasType(pointerType())))))
           .bind("legacy_consumer"),
       this);
 
   // Matching assignment to owners, with the rhs not being an owner nor creating
   // one.
-  Finder->addMatcher(binaryOperator(matchers::isAssignmentOperator(),
-                                    hasLHS(IsOwnerType),
-                                    hasRHS(unless(ConsideredOwner)))
+  Finder->addMatcher(binaryOperator(allOf(matchers::isAssignmentOperator(),
+                                          hasLHS(IsOwnerType),
+                                          hasRHS(unless(ConsideredOwner))))
                          .bind("owner_assignment"),
                      this);
 
   // Matching initialization of owners with non-owners, nor creating owners.
   Finder->addMatcher(
-      namedDecl(varDecl(hasInitializer(unless(ConsideredOwner)), IsOwnerType)
-                    .bind("owner_initialization")),
+      namedDecl(
+          varDecl(allOf(hasInitializer(unless(ConsideredOwner)), IsOwnerType))
+              .bind("owner_initialization")),
       this);
 
   const auto HasConstructorInitializerForOwner =
       has(cxxConstructorDecl(forEachConstructorInitializer(
-          cxxCtorInitializer(
-              isMemberInitializer(), forField(IsOwnerType),
-              withInitializer(
-                  // Avoid templatesdeclaration with
-                  // excluding parenListExpr.
-                  allOf(unless(ConsideredOwner), unless(parenListExpr()))))
+          cxxCtorInitializer(allOf(isMemberInitializer(), forField(IsOwnerType),
+                                   withInitializer(
+                                       // Avoid templatesdeclaration with
+                                       // excluding parenListExpr.
+                                       allOf(unless(ConsideredOwner),
+                                             unless(parenListExpr())))))
               .bind("owner_member_initializer"))));
 
   // Match class member initialization that expects owners, but does not get
@@ -123,11 +125,11 @@ void OwningMemoryCheck::registerMatchers(MatchFinder *Finder) {
 
   // Matching on assignment operations where the RHS is a newly created owner,
   // but the LHS is not an owner.
-  Finder->addMatcher(binaryOperator(matchers::isAssignmentOperator(),
-                                    hasLHS(unless(IsOwnerType)),
-                                    hasRHS(CreatesOwner))
-                         .bind("bad_owner_creation_assignment"),
-                     this);
+  Finder->addMatcher(
+      binaryOperator(allOf(matchers::isAssignmentOperator(),
+                           hasLHS(unless(IsOwnerType)), hasRHS(CreatesOwner)))
+          .bind("bad_owner_creation_assignment"),
+      this);
 
   // Matching on initialization operations where the initial value is a newly
   // created owner, but the LHS is not an owner.
@@ -158,9 +160,10 @@ void OwningMemoryCheck::registerMatchers(MatchFinder *Finder) {
   // Matching on functions, that return an owner/resource, but don't declare
   // their return type as owner.
   Finder->addMatcher(
-      functionDecl(hasDescendant(returnStmt(hasReturnValue(ConsideredOwner))
-                                     .bind("bad_owner_return")),
-                   unless(returns(qualType(hasDeclaration(OwnerDecl)))))
+      functionDecl(
+          allOf(hasDescendant(returnStmt(hasReturnValue(ConsideredOwner))
+                                  .bind("bad_owner_return")),
+                unless(returns(qualType(hasDeclaration(OwnerDecl))))))
           .bind("function_decl"),
       this);
 
@@ -168,9 +171,10 @@ void OwningMemoryCheck::registerMatchers(MatchFinder *Finder) {
   // destructor to properly release the owner.
   Finder->addMatcher(
       cxxRecordDecl(
-          has(fieldDecl(IsOwnerType).bind("undestructed_owner_member")),
-          anyOf(unless(has(cxxDestructorDecl())),
-                has(cxxDestructorDecl(anyOf(isDefaulted(), isDeleted())))))
+          allOf(
+              has(fieldDecl(IsOwnerType).bind("undestructed_owner_member")),
+              anyOf(unless(has(cxxDestructorDecl())),
+                    has(cxxDestructorDecl(anyOf(isDefaulted(), isDeleted()))))))
           .bind("non_destructor_class"),
       this);
 }
@@ -199,7 +203,7 @@ bool OwningMemoryCheck::handleDeletion(const BoundNodes &Nodes) {
 
   // Deletion of non-owners, with `delete variable;`
   if (DeleteStmt) {
-    diag(DeleteStmt->getBeginLoc(),
+    diag(DeleteStmt->getLocStart(),
          "deleting a pointer through a type that is "
          "not marked 'gsl::owner<>'; consider using a "
          "smart pointer instead")
@@ -208,7 +212,7 @@ bool OwningMemoryCheck::handleDeletion(const BoundNodes &Nodes) {
     // FIXME: The declaration of the variable that was deleted can be
     // rewritten.
     const ValueDecl *Decl = DeletedVariable->getDecl();
-    diag(Decl->getBeginLoc(), "variable declared here", DiagnosticIDs::Note)
+    diag(Decl->getLocStart(), "variable declared here", DiagnosticIDs::Note)
         << Decl->getSourceRange();
 
     return true;
@@ -224,7 +228,7 @@ bool OwningMemoryCheck::handleLegacyConsumers(const BoundNodes &Nodes) {
   // as a pointer, which should not be an owner. The argument that is an owner
   // is known and the false positive coming from the filename can be avoided.
   if (LegacyConsumer) {
-    diag(LegacyConsumer->getBeginLoc(),
+    diag(LegacyConsumer->getLocStart(),
          "calling legacy resource function without passing a 'gsl::owner<>'")
         << LegacyConsumer->getSourceRange();
     return true;
@@ -238,7 +242,7 @@ bool OwningMemoryCheck::handleExpectedOwner(const BoundNodes &Nodes) {
 
   // Expected function argument to be owner.
   if (ExpectedOwner) {
-    diag(ExpectedOwner->getBeginLoc(),
+    diag(ExpectedOwner->getLocStart(),
          "expected argument of type 'gsl::owner<>'; got %0")
         << ExpectedOwner->getType() << ExpectedOwner->getSourceRange();
     return true;
@@ -257,7 +261,7 @@ bool OwningMemoryCheck::handleAssignmentAndInit(const BoundNodes &Nodes) {
 
   // Assignments to owners.
   if (OwnerAssignment) {
-    diag(OwnerAssignment->getBeginLoc(),
+    diag(OwnerAssignment->getLocStart(),
          "expected assignment source to be of type 'gsl::owner<>'; got %0")
         << OwnerAssignment->getRHS()->getType()
         << OwnerAssignment->getSourceRange();
@@ -266,7 +270,7 @@ bool OwningMemoryCheck::handleAssignmentAndInit(const BoundNodes &Nodes) {
 
   // Initialization of owners.
   if (OwnerInitialization) {
-    diag(OwnerInitialization->getBeginLoc(),
+    diag(OwnerInitialization->getLocStart(),
          "expected initialization with value of type 'gsl::owner<>'; got %0")
         << OwnerInitialization->getAnyInitializer()->getType()
         << OwnerInitialization->getSourceRange();
@@ -302,7 +306,7 @@ bool OwningMemoryCheck::handleAssignmentFromNewOwner(const BoundNodes &Nodes) {
 
   // Bad assignments to non-owners, where the RHS is a newly created owner.
   if (BadOwnerAssignment) {
-    diag(BadOwnerAssignment->getBeginLoc(),
+    diag(BadOwnerAssignment->getLocStart(),
          "assigning newly created 'gsl::owner<>' to non-owner %0")
         << BadOwnerAssignment->getLHS()->getType()
         << BadOwnerAssignment->getSourceRange();
@@ -311,7 +315,7 @@ bool OwningMemoryCheck::handleAssignmentFromNewOwner(const BoundNodes &Nodes) {
 
   // Bad initialization of non-owners, where the RHS is a newly created owner.
   if (BadOwnerInitialization) {
-    diag(BadOwnerInitialization->getBeginLoc(),
+    diag(BadOwnerInitialization->getLocStart(),
          "initializing non-owner %0 with a newly created 'gsl::owner<>'")
         << BadOwnerInitialization->getType()
         << BadOwnerInitialization->getSourceRange();
@@ -322,7 +326,7 @@ bool OwningMemoryCheck::handleAssignmentFromNewOwner(const BoundNodes &Nodes) {
     // If the type of the variable was deduced, the wrapping owner typedef is
     // eliminated, therefore the check emits a special note for that case.
     if (Nodes.getNodeAs<AutoType>("deduced_type")) {
-      diag(BadOwnerInitialization->getBeginLoc(),
+      diag(BadOwnerInitialization->getLocStart(),
            "type deduction did not result in an owner", DiagnosticIDs::Note);
     }
     return true;
@@ -333,7 +337,7 @@ bool OwningMemoryCheck::handleAssignmentFromNewOwner(const BoundNodes &Nodes) {
   if (BadOwnerArgument) {
     assert(BadOwnerParameter &&
            "parameter for the problematic argument not found");
-    diag(BadOwnerArgument->getBeginLoc(), "initializing non-owner argument of "
+    diag(BadOwnerArgument->getLocStart(), "initializing non-owner argument of "
                                           "type %0 with a newly created "
                                           "'gsl::owner<>'")
         << BadOwnerParameter->getType() << BadOwnerArgument->getSourceRange();
@@ -352,7 +356,7 @@ bool OwningMemoryCheck::handleReturnValues(const BoundNodes &Nodes) {
   if (BadReturnType) {
     // The returned value is a resource or variable that was not annotated with
     // owner<> and the function return type is not owner<>.
-    diag(BadReturnType->getBeginLoc(),
+    diag(BadReturnType->getLocStart(),
          "returning a newly created resource of "
          "type %0 or 'gsl::owner<>' from a "
          "function whose return type is not 'gsl::owner<>'")
@@ -376,7 +380,7 @@ bool OwningMemoryCheck::handleOwnerMembers(const BoundNodes &Nodes) {
     assert(DeclaredOwnerMember &&
            "match on class with bad destructor but without a declared owner");
 
-    diag(DeclaredOwnerMember->getBeginLoc(),
+    diag(DeclaredOwnerMember->getLocStart(),
          "member variable of type 'gsl::owner<>' requires the class %0 to "
          "implement a destructor to release the owned resource")
         << BadClass;

@@ -5,19 +5,15 @@
 // This file is distributed under the University of Illinois Open Source
 // License. See LICENSE.TXT for details.
 //
-//===----------------------------------------------------------------------===//
-//
+//===---------------------------------------------------------------------===//
 // This file contains synchronous versions of ClangdServer's async API. We
 // deliberately don't expose the sync API outside tests to encourage using the
 // async versions in clangd code.
-//
-//===----------------------------------------------------------------------===//
-
 #ifndef LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_SYNCAPI_H
 #define LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_SYNCAPI_H
 
 #include "ClangdServer.h"
-#include "index/Index.h"
+#include <future>
 
 namespace clang {
 namespace clangd {
@@ -47,14 +43,10 @@ std::string runDumpAST(ClangdServer &Server, PathRef File);
 llvm::Expected<std::vector<SymbolInformation>>
 runWorkspaceSymbols(ClangdServer &Server, StringRef Query, int Limit);
 
-Expected<std::vector<DocumentSymbol>> runDocumentSymbols(ClangdServer &Server,
-                                                         PathRef File);
-
-SymbolSlab runFuzzyFind(const SymbolIndex &Index, StringRef Query);
-SymbolSlab runFuzzyFind(const SymbolIndex &Index, const FuzzyFindRequest &Req);
-RefSlab getRefs(const SymbolIndex &Index, SymbolID ID);
+llvm::Expected<std::vector<SymbolInformation>>
+runDocumentSymbols(ClangdServer &Server, PathRef File);
 
 } // namespace clangd
 } // namespace clang
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_SYNCAPI_H
+#endif

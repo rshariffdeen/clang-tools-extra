@@ -41,26 +41,12 @@ bool HelpQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
         "as part of other expressions.\n"
         "  set bind-root (true|false)        "
         "Set whether to bind the root matcher to \"root\".\n"
-        "  set print-matcher (true|false)    "
-        "Set whether to print the current matcher,\n"
-        "  set output <feature>              "
-        "Set whether to output only <feature> content.\n"
-        "  enable output <feature>           "
-        "Enable <feature> content non-exclusively.\n"
-        "  disable output <feature>          "
-        "Disable <feature> content non-exclusively.\n"
-        "  quit, q                           "
-        "Terminates the query session.\n\n"
-        "Several commands accept a <feature> parameter. The available features "
-        "are:\n\n"
-        "  print                             "
-        "Pretty-print bound nodes.\n"
-        "  diag                              "
-        "Diagnostic location for bound nodes.\n"
-        "  detailed-ast                      "
-        "Detailed AST output for bound nodes.\n"
-        "  dump                              "
-        "Detailed AST output for bound nodes (alias of detailed-ast).\n\n";
+        "  set output (diag|print|dump)      "
+        "Set whether to print bindings as diagnostics,\n"
+        "                                    "
+        "AST pretty prints or AST dumps.\n"
+        "  quit                              "
+        "Terminates the query session.\n\n";
   return true;
 }
 
@@ -100,18 +86,13 @@ bool MatchQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
     }
     Finder.matchAST(AST->getASTContext());
 
-    if (QS.PrintMatcher) {
-      std::string prefixText = "Matcher: ";
-      OS << "\n  " << prefixText << Source << "\n";
-      OS << "  " << std::string(prefixText.size() + Source.size(), '=') << '\n';
-    }
-
     for (auto MI = Matches.begin(), ME = Matches.end(); MI != ME; ++MI) {
       OS << "\nMatch #" << ++MatchCount << ":\n\n";
 
       for (auto BI = MI->getMap().begin(), BE = MI->getMap().end(); BI != BE;
            ++BI) {
-        if (QS.DiagOutput) {
+        switch (QS.OutKind) {
+        case OK_Diag: {
           clang::SourceRange R = BI->second.getSourceRange();
           if (R.isValid()) {
             TextDiagnostic TD(OS, AST->getASTContext().getLangOpts(),
@@ -121,16 +102,20 @@ bool MatchQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
                 DiagnosticsEngine::Note, "\"" + BI->first + "\" binds here",
                 CharSourceRange::getTokenRange(R), None);
           }
+          break;
         }
-        if (QS.PrintOutput) {
+        case OK_Print: {
           OS << "Binding for \"" << BI->first << "\":\n";
           BI->second.print(OS, AST->getASTContext().getPrintingPolicy());
           OS << "\n";
+          break;
         }
-        if (QS.DetailedASTOutput) {
+        case OK_Dump: {
           OS << "Binding for \"" << BI->first << "\":\n";
           BI->second.dump(OS, AST->getSourceManager());
           OS << "\n";
+          break;
+        }
         }
       }
 

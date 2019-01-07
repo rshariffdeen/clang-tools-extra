@@ -20,34 +20,27 @@ template <typename T> constexpr bool just_true = true;
 class Test1 {
 public:
   template <typename T> Test1(T &&n);
-  // CHECK-NOTES: [[@LINE-1]]:25: warning: constructor accepting a forwarding reference can hide the copy and move constructors [bugprone-forwarding-reference-overload]
-  // CHECK-NOTES: 48:3: note: copy constructor declared here
-  // CHECK-NOTES: 49:3: note: copy constructor declared here
-  // CHECK-NOTES: 50:3: note: move constructor declared here
+  // CHECK-MESSAGES: :[[@LINE-1]]:25: warning: constructor accepting a forwarding reference can hide the copy and move constructors [bugprone-forwarding-reference-overload]
 
   template <typename T> Test1(T &&n, int i = 5, ...);
-  // CHECK-NOTES: :[[@LINE-1]]:25: warning: constructor accepting a forwarding reference can hide the copy and move constructors
-  // CHECK-NOTES: 48:3: note: copy constructor declared here
-  // CHECK-NOTES: 49:3: note: copy constructor declared here
-  // CHECK-NOTES: 50:3: note: move constructor declared here
+  // CHECK-MESSAGES: :[[@LINE-1]]:25: warning: constructor accepting a forwarding reference can hide the copy and move constructors
 
   template <typename T, typename U = typename std::enable_if_nice<T>::type>
   Test1(T &&n);
-  // CHECK-NOTES: :[[@LINE-1]]:3: warning: constructor accepting a forwarding reference can hide the copy and move constructors
-  // CHECK-NOTES: 48:3: note: copy constructor declared here
-  // CHECK-NOTES: 49:3: note: copy constructor declared here
-  // CHECK-NOTES: 50:3: note: move constructor declared here
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: constructor accepting a forwarding reference can hide the copy and move constructors
 
   template <typename T>
   Test1(T &&n, typename foo::enable_if<long>::type i = 5, ...);
-  // CHECK-NOTES: :[[@LINE-1]]:3: warning: constructor accepting a forwarding reference can hide the copy and move constructors
-  // CHECK-NOTES: 48:3: note: copy constructor declared here
-  // CHECK-NOTES: 49:3: note: copy constructor declared here
-  // CHECK-NOTES: 50:3: note: move constructor declared here
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: constructor accepting a forwarding reference can hide the copy and move constructors
 
   Test1(const Test1 &other) {}
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: note: copy constructor declared here
+
   Test1(Test1 &other) {}
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: note: copy constructor declared here
+
   Test1(Test1 &&other) {}
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: note: move constructor declared here
 };
 
 template <typename U> class Test2 {
@@ -103,10 +96,10 @@ private:
 class Test4 {
 public:
   template <typename T> Test4(T &&n);
-  // CHECK-NOTES: :[[@LINE-1]]:25: warning: constructor accepting a forwarding reference can hide the copy and move constructors
+  // CHECK-MESSAGES: :[[@LINE-1]]:25: warning: constructor accepting a forwarding reference can hide the copy and move constructors
 
   Test4(const Test4 &rhs);
-  // CHECK-NOTES: :[[@LINE-1]]:3: note: copy constructor declared here
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: note: copy constructor declared here
 };
 
 // Nothing can be hidden, the copy constructor is implicitly deleted.
@@ -121,10 +114,10 @@ public:
 class Test6 {
 public:
   template <typename T> Test6(T &&n);
-  // CHECK-NOTES: :[[@LINE-1]]:25: warning: constructor accepting a forwarding reference can hide the move constructor
+  // CHECK-MESSAGES: :[[@LINE-1]]:25: warning: constructor accepting a forwarding reference can hide the move constructor
 
   Test6(Test6 &&rhs);
-  // CHECK-NOTES: :[[@LINE-1]]:3: note: move constructor declared here
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: note: move constructor declared here
 private:
   Test6(const Test6 &rhs);
 };
@@ -148,5 +141,5 @@ class variant {
 public:
   template <class _Arg, class _Tp = __best_match_t<_Arg, _Types...> >
   constexpr variant(_Arg&& __arg) {}
-  // CHECK-NOTES: :[[@LINE-1]]:13: warning: constructor accepting a forwarding reference can hide the copy and move constructors
+  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: constructor accepting a forwarding reference can hide the copy and move constructors
 };

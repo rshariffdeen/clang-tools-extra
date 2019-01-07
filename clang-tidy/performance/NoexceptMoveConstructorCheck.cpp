@@ -58,8 +58,7 @@ void NoexceptMoveConstructorCheck::check(
     // where expr evaluates to false.
     if (ProtoType->canThrow() == CT_Can) {
       Expr *E = ProtoType->getNoexceptExpr();
-      E = E->IgnoreImplicit();
-      if (!isa<CXXBoolLiteralExpr>(E)) {
+      if (!isa<CXXBoolLiteralExpr>(ProtoType->getNoexceptExpr())) {
         diag(E->getExprLoc(),
              "noexcept specifier on the move %0 evaluates to 'false'")
             << MethodType;
