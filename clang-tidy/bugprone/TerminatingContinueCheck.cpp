@@ -39,7 +39,7 @@ void TerminatingContinueCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *ContStmt = Result.Nodes.getNodeAs<ContinueStmt>("continue");
 
   auto Diag =
-      diag(ContStmt->getBeginLoc(),
+      diag(ContStmt->getLocStart(),
            "'continue' in loop with false condition is equivalent to 'break'")
       << tooling::fixit::createReplacement(*ContStmt, "break");
 }

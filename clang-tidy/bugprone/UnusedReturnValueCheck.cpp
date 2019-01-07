@@ -86,10 +86,10 @@ void UnusedReturnValueCheck::registerMatchers(MatchFinder *Finder) {
 
 void UnusedReturnValueCheck::check(const MatchFinder::MatchResult &Result) {
   if (const auto *Matched = Result.Nodes.getNodeAs<CallExpr>("match")) {
-    diag(Matched->getBeginLoc(),
+    diag(Matched->getLocStart(),
          "the value returned by this function should be used")
         << Matched->getSourceRange();
-    diag(Matched->getBeginLoc(),
+    diag(Matched->getLocStart(),
          "cast the expression to void to silence this warning",
          DiagnosticIDs::Note);
   }

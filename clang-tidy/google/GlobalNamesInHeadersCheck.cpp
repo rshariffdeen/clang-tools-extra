@@ -48,15 +48,15 @@ void GlobalNamesInHeadersCheck::registerMatchers(
 void GlobalNamesInHeadersCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *D = Result.Nodes.getNodeAs<Decl>("using_decl");
   // If it comes from a macro, we'll assume it is fine.
-  if (D->getBeginLoc().isMacroID())
+  if (D->getLocStart().isMacroID())
     return;
 
   // Ignore if it comes from the "main" file ...
   if (Result.SourceManager->isInMainFile(
-          Result.SourceManager->getExpansionLoc(D->getBeginLoc()))) {
+          Result.SourceManager->getExpansionLoc(D->getLocStart()))) {
     // unless that file is a header.
     if (!utils::isSpellingLocInHeaderFile(
-            D->getBeginLoc(), *Result.SourceManager, HeaderFileExtensions))
+            D->getLocStart(), *Result.SourceManager, HeaderFileExtensions))
       return;
   }
 
@@ -70,7 +70,7 @@ void GlobalNamesInHeadersCheck::check(const MatchFinder::MatchResult &Result) {
     }
   }
 
-  diag(D->getBeginLoc(),
+  diag(D->getLocStart(),
        "using declarations in the global namespace in headers are prohibited");
 }
 

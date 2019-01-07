@@ -30,22 +30,24 @@ void UseUncaughtExceptionsCheck::registerMatchers(MatchFinder *Finder) {
       this);
 
   // DeclRefExpr: warning, no fix-it.
-  Finder->addMatcher(
-      declRefExpr(to(functionDecl(hasName(MatchText))), unless(callExpr()))
-          .bind("decl_ref_expr"),
-      this);
+  Finder->addMatcher(declRefExpr(allOf(to(functionDecl(hasName(MatchText))),
+                                       unless(callExpr())))
+                         .bind("decl_ref_expr"),
+                     this);
 
   // CallExpr: warning, fix-it.
-  Finder->addMatcher(callExpr(hasDeclaration(functionDecl(hasName(MatchText))),
-                              unless(hasAncestor(initListExpr())))
-                         .bind("call_expr"),
-                     this);
+  Finder->addMatcher(
+      callExpr(allOf(hasDeclaration(functionDecl(hasName(MatchText))),
+                     unless(hasAncestor(initListExpr()))))
+          .bind("call_expr"),
+      this);
   // CallExpr in initialisation list: warning, fix-it with avoiding narrowing
   // conversions.
-  Finder->addMatcher(callExpr(hasAncestor(initListExpr()),
-                              hasDeclaration(functionDecl(hasName(MatchText))))
-                         .bind("init_call_expr"),
-                     this);
+  Finder->addMatcher(
+      callExpr(allOf(hasAncestor(initListExpr()),
+                     hasDeclaration(functionDecl(hasName(MatchText)))))
+          .bind("init_call_expr"),
+      this);
 }
 
 void UseUncaughtExceptionsCheck::check(const MatchFinder::MatchResult &Result) {
@@ -55,15 +57,15 @@ void UseUncaughtExceptionsCheck::check(const MatchFinder::MatchResult &Result) {
   bool WarnOnly = false;
 
   if (C) {
-    BeginLoc = C->getBeginLoc();
-    EndLoc = C->getEndLoc();
+    BeginLoc = C->getLocStart();
+    EndLoc = C->getLocEnd();
   } else if (const auto *E = Result.Nodes.getNodeAs<CallExpr>("call_expr")) {
-    BeginLoc = E->getBeginLoc();
-    EndLoc = E->getEndLoc();
+    BeginLoc = E->getLocStart();
+    EndLoc = E->getLocEnd();
   } else if (const auto *D =
                  Result.Nodes.getNodeAs<DeclRefExpr>("decl_ref_expr")) {
-    BeginLoc = D->getBeginLoc();
-    EndLoc = D->getEndLoc();
+    BeginLoc = D->getLocStart();
+    EndLoc = D->getLocEnd();
     WarnOnly = true;
   } else {
     const auto *U = Result.Nodes.getNodeAs<UsingDecl>("using_decl");

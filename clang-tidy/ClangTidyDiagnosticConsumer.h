@@ -102,12 +102,6 @@ public:
   /// \brief Initializes \c ClangTidyContext instance.
   ClangTidyContext(std::unique_ptr<ClangTidyOptionsProvider> OptionsProvider,
                    bool AllowEnablingAnalyzerAlphaCheckers = false);
-  /// Sets the DiagnosticsEngine that diag() will emit diagnostics to.
-  // FIXME: this is required initialization, and should be a constructor param.
-  // Fix the context -> diag engine -> consumer -> context initialization cycle.
-  void setDiagnosticsEngine(DiagnosticsEngine *DiagEngine) {
-    this->DiagEngine = DiagEngine;
-  }
 
   ~ClangTidyContext();
 
@@ -166,6 +160,12 @@ public:
   /// counters.
   const ClangTidyStats &getStats() const { return Stats; }
 
+  /// \brief Returns all collected errors.
+  ArrayRef<ClangTidyError> getErrors() const { return Errors; }
+
+  /// \brief Clears collected errors.
+  void clearErrors() { Errors.clear(); }
+
   /// \brief Control profile collection in clang-tidy.
   void setEnableProfiling(bool Profile);
   bool getEnableProfiling() const { return Profile; }
@@ -192,9 +192,18 @@ public:
   }
 
 private:
-  // Writes to Stats.
+  // Calls setDiagnosticsEngine() and storeError().
   friend class ClangTidyDiagnosticConsumer;
+  friend class ClangTidyPluginAction;
 
+  /// \brief Sets the \c DiagnosticsEngine so that Diagnostics can be generated
+  /// correctly.
+  void setDiagnosticsEngine(DiagnosticsEngine *Engine);
+
+  /// \brief Store an \p Error.
+  void storeError(const ClangTidyError &Error);
+
+  std::vector<ClangTidyError> Errors;
   DiagnosticsEngine *DiagEngine;
   std::unique_ptr<ClangTidyOptionsProvider> OptionsProvider;
 
@@ -234,12 +243,13 @@ public:
   void HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
                         const Diagnostic &Info) override;
 
-  // Retrieve the diagnostics that were captured.
-  std::vector<ClangTidyError> take();
+  /// \brief Flushes the internal diagnostics buffer to the ClangTidyContext.
+  void finish() override;
 
 private:
   void finalizeLastError();
-  void removeIncompatibleErrors();
+
+  void removeIncompatibleErrors(SmallVectorImpl<ClangTidyError> &Errors) const;
 
   /// \brief Returns the \c HeaderFilter constructed for the options set in the
   /// context.
@@ -247,12 +257,13 @@ private:
 
   /// \brief Updates \c LastErrorRelatesToUserCode and LastErrorPassesLineFilter
   /// according to the diagnostic \p Location.
-  void checkFilters(SourceLocation Location, const SourceManager& Sources);
+  void checkFilters(SourceLocation Location);
   bool passesLineFilter(StringRef FileName, unsigned LineNumber) const;
 
   ClangTidyContext &Context;
   bool RemoveIncompatibleErrors;
-  std::vector<ClangTidyError> Errors;
+  std::unique_ptr<DiagnosticsEngine> Diags;
+  SmallVector<ClangTidyError, 8> Errors;
   std::unique_ptr<llvm::Regex> HeaderFilter;
   bool LastErrorRelatesToUserCode;
   bool LastErrorPassesLineFilter;

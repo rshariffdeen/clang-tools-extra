@@ -42,7 +42,7 @@ void ThrowKeywordMissingCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *TemporaryExpr =
       Result.Nodes.getNodeAs<Expr>("temporary-exception-not-thrown");
 
-  diag(TemporaryExpr->getBeginLoc(), "suspicious exception object created but "
+  diag(TemporaryExpr->getLocStart(), "suspicious exception object created but "
                                      "not thrown; did you mean 'throw %0'?")
       << TemporaryExpr->getType().getBaseTypeIdentifier()->getName();
 }

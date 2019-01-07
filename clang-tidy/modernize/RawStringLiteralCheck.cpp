@@ -129,14 +129,14 @@ void RawStringLiteralCheck::registerMatchers(MatchFinder *Finder) {
 
 void RawStringLiteralCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Literal = Result.Nodes.getNodeAs<StringLiteral>("lit");
-  if (Literal->getBeginLoc().isMacroID())
+  if (Literal->getLocStart().isMacroID())
     return;
 
   if (containsEscapedCharacters(Result, Literal, DisallowedChars)) {
     std::string Replacement = asRawStringLiteral(Literal, DelimiterStem);
     if (ReplaceShorterLiterals ||
         Replacement.length() <=
-            Lexer::MeasureTokenLength(Literal->getBeginLoc(),
+            Lexer::MeasureTokenLength(Literal->getLocStart(),
                                       *Result.SourceManager, getLangOpts()))
       replaceWithRawStringLiteral(Result, Literal, Replacement);
   }
@@ -148,7 +148,7 @@ void RawStringLiteralCheck::replaceWithRawStringLiteral(
   CharSourceRange CharRange = Lexer::makeFileCharRange(
       CharSourceRange::getTokenRange(Literal->getSourceRange()),
       *Result.SourceManager, getLangOpts());
-  diag(Literal->getBeginLoc(),
+  diag(Literal->getLocStart(),
        "escaped string literal can be written as a raw string literal")
       << FixItHint::CreateReplacement(CharRange, Replacement);
 }

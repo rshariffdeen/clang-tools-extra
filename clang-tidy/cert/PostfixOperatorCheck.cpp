@@ -23,8 +23,7 @@ void PostfixOperatorCheck::registerMatchers(MatchFinder *Finder) {
     return;
 
   Finder->addMatcher(functionDecl(anyOf(hasOverloadedOperatorName("++"),
-                                        hasOverloadedOperatorName("--")),
-                                  unless(isInstantiated()))
+                                        hasOverloadedOperatorName("--")))
                          .bind("decl"),
                      this);
 }

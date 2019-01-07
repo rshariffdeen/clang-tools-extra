@@ -40,7 +40,7 @@ void MisleadingIndentationCheck::danglingElseCheck(const SourceManager &SM,
   if (IfLoc.isMacroID() || ElseLoc.isMacroID())
     return;
 
-  if (SM.getExpansionLineNumber(If->getThen()->getEndLoc()) ==
+  if (SM.getExpansionLineNumber(If->getThen()->getLocEnd()) ==
       SM.getExpansionLineNumber(ElseLoc))
     return;
 
@@ -79,15 +79,15 @@ void MisleadingIndentationCheck::missingBracesCheck(const SourceManager &SM,
     if (isa<CompoundStmt>(Inner))
       continue;
 
-    SourceLocation InnerLoc = Inner->getBeginLoc();
-    SourceLocation OuterLoc = CurrentStmt->getBeginLoc();
+    SourceLocation InnerLoc = Inner->getLocStart();
+    SourceLocation OuterLoc = CurrentStmt->getLocStart();
 
     if (SM.getExpansionLineNumber(InnerLoc) ==
         SM.getExpansionLineNumber(OuterLoc))
       continue;
 
     const Stmt *NextStmt = CStmt->body_begin()[i + 1];
-    SourceLocation NextLoc = NextStmt->getBeginLoc();
+    SourceLocation NextLoc = NextStmt->getLocStart();
 
     if (InnerLoc.isMacroID() || OuterLoc.isMacroID() || NextLoc.isMacroID())
       continue;

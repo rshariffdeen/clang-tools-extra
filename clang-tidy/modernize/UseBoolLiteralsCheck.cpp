@@ -57,7 +57,7 @@ void UseBoolLiteralsCheck::check(const MatchFinder::MatchResult &Result) {
 
   const Expr *Expression = Cast ? Cast : Literal;
 
-  bool InMacro = Expression->getBeginLoc().isMacroID();
+  bool InMacro = Expression->getLocStart().isMacroID();
 
   if (InMacro && IgnoreMacros)
     return;

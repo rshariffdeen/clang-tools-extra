@@ -9,7 +9,6 @@ add_clang_library(clangReorderFields
   clangBasic
   clangIndex
   clangLex
-  clangSerialization
   clangToolingCore
   )
 

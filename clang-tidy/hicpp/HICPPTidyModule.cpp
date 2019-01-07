@@ -22,7 +22,6 @@
 #include "../misc/NewDeleteOverloadsCheck.h"
 #include "../misc/StaticAssertCheck.h"
 #include "../bugprone/UndelegatedConstructorCheck.h"
-#include "../modernize/AvoidCArraysCheck.h"
 #include "../modernize/DeprecatedHeadersCheck.h"
 #include "../modernize/UseAutoCheck.h"
 #include "../modernize/UseEmplaceCheck.h"
@@ -36,7 +35,6 @@
 #include "../readability/BracesAroundStatementsCheck.h"
 #include "../readability/FunctionSizeCheck.h"
 #include "../readability/IdentifierNamingCheck.h"
-#include "../readability/UppercaseLiteralSuffixCheck.h"
 #include "ExceptionBaseclassCheck.h"
 #include "MultiwayPathsCoveredCheck.h"
 #include "NoAssemblerCheck.h"
@@ -49,8 +47,6 @@ namespace hicpp {
 class HICPPModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
-    CheckFactories.registerCheck<modernize::AvoidCArraysCheck>(
-        "hicpp-avoid-c-arrays");
     CheckFactories.registerCheck<cppcoreguidelines::AvoidGotoCheck>(
         "hicpp-avoid-goto");
     CheckFactories.registerCheck<readability::BracesAroundStatementsCheck>(
@@ -104,8 +100,6 @@ public:
         "hicpp-use-nullptr");
     CheckFactories.registerCheck<modernize::UseOverrideCheck>(
         "hicpp-use-override");
-    CheckFactories.registerCheck<readability::UppercaseLiteralSuffixCheck>(
-        "hicpp-uppercase-literal-suffix");
     CheckFactories.registerCheck<cppcoreguidelines::ProTypeVarargCheck>(
         "hicpp-vararg");
   }

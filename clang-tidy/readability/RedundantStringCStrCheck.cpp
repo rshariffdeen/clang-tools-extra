@@ -13,7 +13,6 @@
 
 #include "RedundantStringCStrCheck.h"
 #include "clang/Lex/Lexer.h"
-#include "clang/Tooling/FixIt.h"
 
 using namespace clang::ast_matchers;
 
@@ -22,6 +21,14 @@ namespace tidy {
 namespace readability {
 
 namespace {
+
+template <typename T>
+StringRef getText(const ast_matchers::MatchFinder::MatchResult &Result,
+                  T const &Node) {
+  return Lexer::getSourceText(
+      CharSourceRange::getTokenRange(Node.getSourceRange()),
+      *Result.SourceManager, Result.Context->getLangOpts());
+}
 
 // Return true if expr needs to be put in parens when it is an argument of a
 // prefix unary operator, e.g. when it is a binary or ternary operator
@@ -47,12 +54,10 @@ formatDereference(const ast_matchers::MatchFinder::MatchResult &Result,
   if (const auto *Op = dyn_cast<clang::UnaryOperator>(&ExprNode)) {
     if (Op->getOpcode() == UO_AddrOf) {
       // Strip leading '&'.
-      return tooling::fixit::getText(*Op->getSubExpr()->IgnoreParens(),
-                                     *Result.Context);
+      return getText(Result, *Op->getSubExpr()->IgnoreParens());
     }
   }
-  StringRef Text = tooling::fixit::getText(ExprNode, *Result.Context);
-
+  StringRef Text = getText(Result, ExprNode);
   if (Text.empty())
     return std::string();
   // Add leading '*'.
@@ -180,12 +185,11 @@ void RedundantStringCStrCheck::check(const MatchFinder::MatchResult &Result) {
   // Replace the "call" node with the "arg" node, prefixed with '*'
   // if the call was using '->' rather than '.'.
   std::string ArgText =
-      Arrow ? formatDereference(Result, *Arg)
-            : tooling::fixit::getText(*Arg, *Result.Context).str();
+      Arrow ? formatDereference(Result, *Arg) : getText(Result, *Arg).str();
   if (ArgText.empty())
     return;
 
-  diag(Call->getBeginLoc(), "redundant call to %0")
+  diag(Call->getLocStart(), "redundant call to %0")
       << Member->getMemberDecl()
       << FixItHint::CreateReplacement(Call->getSourceRange(), ArgText);
 }

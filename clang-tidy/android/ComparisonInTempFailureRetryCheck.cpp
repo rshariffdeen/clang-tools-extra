@@ -21,15 +21,15 @@ namespace android {
 
 namespace {
 AST_MATCHER(BinaryOperator, isRHSATempFailureRetryArg) {
-  if (!Node.getBeginLoc().isMacroID())
+  if (!Node.getLocStart().isMacroID())
     return false;
 
   const SourceManager &SM = Finder->getASTContext().getSourceManager();
-  if (!SM.isMacroArgExpansion(Node.getRHS()->IgnoreParenCasts()->getBeginLoc()))
+  if (!SM.isMacroArgExpansion(Node.getRHS()->IgnoreParenCasts()->getLocStart()))
     return false;
 
   const LangOptions &Opts = Finder->getASTContext().getLangOpts();
-  SourceLocation LocStart = Node.getBeginLoc();
+  SourceLocation LocStart = Node.getLocStart();
   while (LocStart.isMacroID()) {
     SourceLocation Invocation = SM.getImmediateMacroCallerLoc(LocStart);
     Token Tok;

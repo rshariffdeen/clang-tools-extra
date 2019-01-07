@@ -109,7 +109,7 @@ void ReplaceAutoPtrCheck::registerMatchers(MatchFinder *Finder) {
 
   //   using std::auto_ptr;
   //   ^~~~~~~~~~~~~~~~~~~
-  Finder->addMatcher(usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(namedDecl(
+  Finder->addMatcher(usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(allOf(
                                    hasName("auto_ptr"), isFromStdNamespace()))))
                          .bind(AutoPtrTokenId),
                      this);

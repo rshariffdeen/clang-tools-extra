@@ -18,7 +18,6 @@ add_clang_library(clangIncludeFixer
   clangLex
   clangParse
   clangSema
-  clangSerialization
   clangTooling
   clangToolingCore
   findAllSymbols

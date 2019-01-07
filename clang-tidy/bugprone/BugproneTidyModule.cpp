@@ -16,7 +16,6 @@
 #include "BoolPointerImplicitConversionCheck.h"
 #include "CopyConstructorInitCheck.h"
 #include "DanglingHandleCheck.h"
-#include "ExceptionEscapeCheck.h"
 #include "FoldInitTypeCheck.h"
 #include "ForwardDeclarationNamespaceCheck.h"
 #include "ForwardingReferenceOverloadCheck.h"
@@ -44,7 +43,6 @@
 #include "SwappedArgumentsCheck.h"
 #include "TerminatingContinueCheck.h"
 #include "ThrowKeywordMissingCheck.h"
-#include "TooSmallLoopVariableCheck.h"
 #include "UndefinedMemoryManipulationCheck.h"
 #include "UndelegatedConstructorCheck.h"
 #include "UnusedRaiiCheck.h"
@@ -69,8 +67,6 @@ public:
         "bugprone-copy-constructor-init");
     CheckFactories.registerCheck<DanglingHandleCheck>(
         "bugprone-dangling-handle");
-    CheckFactories.registerCheck<ExceptionEscapeCheck>(
-        "bugprone-exception-escape");
     CheckFactories.registerCheck<FoldInitTypeCheck>(
         "bugprone-fold-init-type");
     CheckFactories.registerCheck<ForwardDeclarationNamespaceCheck>(
@@ -97,8 +93,6 @@ public:
         "bugprone-move-forwarding-reference");
     CheckFactories.registerCheck<MultipleStatementMacroCheck>(
         "bugprone-multiple-statement-macro");
-    CheckFactories.registerCheck<TooSmallLoopVariableCheck>(
-        "bugprone-too-small-loop-variable");
     CheckFactories.registerCheck<cppcoreguidelines::NarrowingConversionsCheck>(
         "bugprone-narrowing-conversions");
     CheckFactories.registerCheck<ParentVirtualCallCheck>(

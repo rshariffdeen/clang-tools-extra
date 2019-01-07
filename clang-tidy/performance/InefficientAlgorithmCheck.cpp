@@ -99,7 +99,7 @@ void InefficientAlgorithmCheck::check(const MatchFinder::MatchResult &Result) {
                                       .getUnqualifiedType()
                                       .getCanonicalType();
     if (AlgCmp != ContainerCmp) {
-      diag(Arg->getBeginLoc(),
+      diag(Arg->getLocStart(),
            "different comparers used in the algorithm and the container");
       return;
     }
@@ -153,7 +153,7 @@ void InefficientAlgorithmCheck::check(const MatchFinder::MatchResult &Result) {
     Hint = FixItHint::CreateReplacement(CallRange, ReplacementText);
   }
 
-  diag(AlgCall->getBeginLoc(),
+  diag(AlgCall->getLocStart(),
        "this STL algorithm call should be replaced with a container method")
       << Hint;
 }

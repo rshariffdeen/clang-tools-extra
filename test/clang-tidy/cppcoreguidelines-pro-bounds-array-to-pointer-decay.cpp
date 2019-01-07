@@ -30,7 +30,6 @@ void f() {
   arrayviewfun(av); // OK
 
   int i = a[0];      // OK
-  int j = a[(1 + 2)];// OK
   pointerfun(&a[0]); // OK
 
   for (auto &e : a) // OK, iteration internally decays array to pointer
@@ -39,9 +38,6 @@ void f() {
 
 const char *g() {
   return "clang"; // OK, decay string literal to pointer
-}
-const char *g2() {
-    return ("clang"); // OK, ParenExpr hides the literal-pointer decay
 }
 
 void f2(void *const *);

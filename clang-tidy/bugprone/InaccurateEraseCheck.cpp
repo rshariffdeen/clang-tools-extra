@@ -57,7 +57,7 @@ void InaccurateEraseCheck::check(const MatchFinder::MatchResult &Result) {
       Result.Nodes.getNodeAs<CXXMemberCallExpr>("erase");
   const auto *EndExpr =
       Result.Nodes.getNodeAs<CXXMemberCallExpr>("end");
-  const SourceLocation Loc = MemberCall->getBeginLoc();
+  const SourceLocation Loc = MemberCall->getLocStart();
 
   FixItHint Hint;
 
@@ -67,7 +67,7 @@ void InaccurateEraseCheck::check(const MatchFinder::MatchResult &Result) {
         CharSourceRange::getTokenRange(EndExpr->getSourceRange()),
         *Result.SourceManager, getLangOpts());
     const SourceLocation EndLoc = Lexer::getLocForEndOfToken(
-        AlgCall->getEndLoc(), 0, *Result.SourceManager, getLangOpts());
+        AlgCall->getLocEnd(), 0, *Result.SourceManager, getLangOpts());
     Hint = FixItHint::CreateInsertion(EndLoc, ", " + ReplacementText);
   }
 

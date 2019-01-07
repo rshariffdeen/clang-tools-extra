@@ -56,7 +56,7 @@ void UseToStringCheck::check(const MatchFinder::MatchResult &Result) {
   else
     return;
 
-  auto Loc = Call->getBeginLoc();
+  auto Loc = Call->getLocStart();
   auto Diag =
       diag(Loc, "use std::to_%0 instead of boost::lexical_cast<std::%0>")
       << StringType;
@@ -65,8 +65,8 @@ void UseToStringCheck::check(const MatchFinder::MatchResult &Result) {
     return;
 
   Diag << FixItHint::CreateReplacement(
-      CharSourceRange::getCharRange(Call->getBeginLoc(),
-                                    Call->getArg(0)->getBeginLoc()),
+      CharSourceRange::getCharRange(Call->getLocStart(),
+                                    Call->getArg(0)->getLocStart()),
       (llvm::Twine("std::to_") + StringType + "(").str());
 }
 

@@ -93,7 +93,7 @@ void ProBoundsConstantArrayIndexCheck::check(
                   SourceRange(BaseRange.getEnd().getLocWithOffset(1),
                               IndexRange.getBegin().getLocWithOffset(-1)),
                   ", ")
-           << FixItHint::CreateReplacement(Matched->getEndLoc(), ")");
+           << FixItHint::CreateReplacement(Matched->getLocEnd(), ")");
 
       Optional<FixItHint> Insertion = Inserter->CreateIncludeInsertion(
           Result.SourceManager->getMainFileID(), GslHeader,

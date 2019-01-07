@@ -117,7 +117,7 @@ AST_POLYMORPHIC_MATCHER_P(isExpansionInFile,
                           AST_POLYMORPHIC_SUPPORTED_TYPES(Decl, Stmt, TypeLoc),
                           std::string, AbsoluteFilePath) {
   auto &SourceManager = Finder->getASTContext().getSourceManager();
-  auto ExpansionLoc = SourceManager.getExpansionLoc(Node.getBeginLoc());
+  auto ExpansionLoc = SourceManager.getExpansionLoc(Node.getLocStart());
   if (ExpansionLoc.isInvalid())
     return false;
   auto FileEntry =
@@ -128,17 +128,18 @@ AST_POLYMORPHIC_MATCHER_P(isExpansionInFile,
          AbsoluteFilePath;
 }
 
-class FindAllIncludes : public PPCallbacks {
+class FindAllIncludes : public clang::PPCallbacks {
 public:
   explicit FindAllIncludes(SourceManager *SM, ClangMoveTool *const MoveTool)
       : SM(*SM), MoveTool(MoveTool) {}
 
-  void InclusionDirective(SourceLocation HashLoc, const Token & /*IncludeTok*/,
+  void InclusionDirective(clang::SourceLocation HashLoc,
+                          const clang::Token & /*IncludeTok*/,
                           StringRef FileName, bool IsAngled,
-                          CharSourceRange FilenameRange,
-                          const FileEntry * /*File*/, StringRef SearchPath,
-                          StringRef /*RelativePath*/,
-                          const Module * /*Imported*/,
+                          clang::CharSourceRange FilenameRange,
+                          const clang::FileEntry * /*File*/,
+                          StringRef SearchPath, StringRef /*RelativePath*/,
+                          const clang::Module * /*Imported*/,
                           SrcMgr::CharacteristicKind /*FileType*/) override {
     if (const auto *FileEntry = SM.getFileEntryForID(SM.getFileID(HashLoc)))
       MoveTool->addIncludes(FileName, IsAngled, SearchPath,
@@ -164,9 +165,9 @@ public:
       : MoveTool(MoveTool) {}
 
   void run(const MatchFinder::MatchResult &Result) override {
-    const auto *FD = Result.Nodes.getNodeAs<FunctionDecl>("function");
+    const auto *FD = Result.Nodes.getNodeAs<clang::FunctionDecl>("function");
     assert(FD);
-    const NamedDecl *D = FD;
+    const clang::NamedDecl *D = FD;
     if (const auto *FTD = FD->getDescribedFunctionTemplate())
       D = FTD;
     MoveDeclFromOldFileToNewFile(MoveTool, D);
@@ -182,7 +183,7 @@ public:
       : MoveTool(MoveTool) {}
 
   void run(const MatchFinder::MatchResult &Result) override {
-    const auto *VD = Result.Nodes.getNodeAs<VarDecl>("var");
+    const auto *VD = Result.Nodes.getNodeAs<clang::VarDecl>("var");
     assert(VD);
     MoveDeclFromOldFileToNewFile(MoveTool, VD);
   }
@@ -197,10 +198,10 @@ public:
       : MoveTool(MoveTool) {}
 
   void run(const MatchFinder::MatchResult &Result) override {
-    if (const auto *TD = Result.Nodes.getNodeAs<TypedefDecl>("typedef"))
+    if (const auto *TD = Result.Nodes.getNodeAs<clang::TypedefDecl>("typedef"))
       MoveDeclFromOldFileToNewFile(MoveTool, TD);
     else if (const auto *TAD =
-                 Result.Nodes.getNodeAs<TypeAliasDecl>("type_alias")) {
+                 Result.Nodes.getNodeAs<clang::TypeAliasDecl>("type_alias")) {
       const NamedDecl * D = TAD;
       if (const auto * TD = TAD->getDescribedAliasTemplate())
         D = TD;
@@ -218,7 +219,7 @@ public:
       : MoveTool(MoveTool) {}
 
   void run(const MatchFinder::MatchResult &Result) override {
-    const auto *ED = Result.Nodes.getNodeAs<EnumDecl>("enum");
+    const auto *ED = Result.Nodes.getNodeAs<clang::EnumDecl>("enum");
     assert(ED);
     MoveDeclFromOldFileToNewFile(MoveTool, ED);
   }
@@ -232,19 +233,21 @@ public:
   explicit ClassDeclarationMatch(ClangMoveTool *MoveTool)
       : MoveTool(MoveTool) {}
   void run(const MatchFinder::MatchResult &Result) override {
-    SourceManager *SM = &Result.Context->getSourceManager();
-    if (const auto *CMD = Result.Nodes.getNodeAs<CXXMethodDecl>("class_method"))
+    clang::SourceManager* SM = &Result.Context->getSourceManager();
+    if (const auto *CMD =
+            Result.Nodes.getNodeAs<clang::CXXMethodDecl>("class_method"))
       MatchClassMethod(CMD, SM);
-    else if (const auto *VD =
-                 Result.Nodes.getNodeAs<VarDecl>("class_static_var_decl"))
+    else if (const auto *VD = Result.Nodes.getNodeAs<clang::VarDecl>(
+                   "class_static_var_decl"))
       MatchClassStaticVariable(VD, SM);
-    else if (const auto *CD =
-                 Result.Nodes.getNodeAs<CXXRecordDecl>("moved_class"))
+    else if (const auto *CD = Result.Nodes.getNodeAs<clang::CXXRecordDecl>(
+                   "moved_class"))
       MatchClassDeclaration(CD, SM);
   }
 
 private:
-  void MatchClassMethod(const CXXMethodDecl *CMD, SourceManager *SM) {
+  void MatchClassMethod(const clang::CXXMethodDecl* CMD,
+                        clang::SourceManager* SM) {
     // Skip inline class methods. isInline() ast matcher doesn't ignore this
     // case.
     if (!CMD->isInlined()) {
@@ -259,11 +262,13 @@ private:
     }
   }
 
-  void MatchClassStaticVariable(const NamedDecl *VD, SourceManager *SM) {
+  void MatchClassStaticVariable(const clang::NamedDecl *VD,
+                                clang::SourceManager* SM) {
     MoveDeclFromOldFileToNewFile(MoveTool, VD);
   }
 
-  void MatchClassDeclaration(const CXXRecordDecl *CD, SourceManager *SM) {
+  void MatchClassDeclaration(const clang::CXXRecordDecl *CD,
+                             clang::SourceManager* SM) {
     // Get class template from its class declaration as UnremovedDecls stores
     // class template.
     if (const auto *TC = CD->getDescribedClassTemplate())
@@ -280,13 +285,14 @@ private:
 
 // Expand to get the end location of the line where the EndLoc of the given
 // Decl.
-SourceLocation getLocForEndOfDecl(const Decl *D,
-                                  const LangOptions &LangOpts = LangOptions()) {
+SourceLocation
+getLocForEndOfDecl(const clang::Decl *D,
+                   const LangOptions &LangOpts = clang::LangOptions()) {
   const auto &SM = D->getASTContext().getSourceManager();
   // If the expansion range is a character range, this is the location of
   // the first character past the end. Otherwise it's the location of the
   // first character in the final token in the range.
-  auto EndExpansionLoc = SM.getExpansionRange(D->getEndLoc()).getEnd();
+  auto EndExpansionLoc = SM.getExpansionRange(D->getLocEnd()).getEnd();
   std::pair<FileID, unsigned> LocInfo = SM.getDecomposedLoc(EndExpansionLoc);
   // Try to load the file buffer.
   bool InvalidTemp = false;
@@ -313,36 +319,39 @@ SourceLocation getLocForEndOfDecl(const Decl *D,
 }
 
 // Get full range of a Decl including the comments associated with it.
-CharSourceRange getFullRange(const Decl *D,
-                             const LangOptions &options = LangOptions()) {
+clang::CharSourceRange
+getFullRange(const clang::Decl *D,
+             const clang::LangOptions &options = clang::LangOptions()) {
   const auto &SM = D->getASTContext().getSourceManager();
-  SourceRange Full(SM.getExpansionLoc(D->getBeginLoc()), getLocForEndOfDecl(D));
+  clang::SourceRange Full(SM.getExpansionLoc(D->getLocStart()),
+                          getLocForEndOfDecl(D));
   // Expand to comments that are associated with the Decl.
   if (const auto *Comment = D->getASTContext().getRawCommentForDeclNoCache(D)) {
-    if (SM.isBeforeInTranslationUnit(Full.getEnd(), Comment->getEndLoc()))
-      Full.setEnd(Comment->getEndLoc());
+    if (SM.isBeforeInTranslationUnit(Full.getEnd(), Comment->getLocEnd()))
+      Full.setEnd(Comment->getLocEnd());
     // FIXME: Don't delete a preceding comment, if there are no other entities
     // it could refer to.
-    if (SM.isBeforeInTranslationUnit(Comment->getBeginLoc(), Full.getBegin()))
-      Full.setBegin(Comment->getBeginLoc());
+    if (SM.isBeforeInTranslationUnit(Comment->getLocStart(), Full.getBegin()))
+      Full.setBegin(Comment->getLocStart());
   }
 
-  return CharSourceRange::getCharRange(Full);
+  return clang::CharSourceRange::getCharRange(Full);
 }
 
-std::string getDeclarationSourceText(const Decl *D) {
+std::string getDeclarationSourceText(const clang::Decl *D) {
   const auto &SM = D->getASTContext().getSourceManager();
   llvm::StringRef SourceText =
-      Lexer::getSourceText(getFullRange(D), SM, LangOptions());
+      clang::Lexer::getSourceText(getFullRange(D), SM, clang::LangOptions());
   return SourceText.str();
 }
 
-bool isInHeaderFile(const Decl *D, llvm::StringRef OriginalRunningDirectory,
+bool isInHeaderFile(const clang::Decl *D,
+                    llvm::StringRef OriginalRunningDirectory,
                     llvm::StringRef OldHeader) {
   const auto &SM = D->getASTContext().getSourceManager();
   if (OldHeader.empty())
     return false;
-  auto ExpansionLoc = SM.getExpansionLoc(D->getBeginLoc());
+  auto ExpansionLoc = SM.getExpansionLoc(D->getLocStart());
   if (ExpansionLoc.isInvalid())
     return false;
 
@@ -354,22 +363,22 @@ bool isInHeaderFile(const Decl *D, llvm::StringRef OriginalRunningDirectory,
   return false;
 }
 
-std::vector<std::string> getNamespaces(const Decl *D) {
+std::vector<std::string> getNamespaces(const clang::Decl *D) {
   std::vector<std::string> Namespaces;
   for (const auto *Context = D->getDeclContext(); Context;
        Context = Context->getParent()) {
-    if (llvm::isa<TranslationUnitDecl>(Context) ||
-        llvm::isa<LinkageSpecDecl>(Context))
+    if (llvm::isa<clang::TranslationUnitDecl>(Context) ||
+        llvm::isa<clang::LinkageSpecDecl>(Context))
       break;
 
-    if (const auto *ND = llvm::dyn_cast<NamespaceDecl>(Context))
+    if (const auto *ND = llvm::dyn_cast<clang::NamespaceDecl>(Context))
       Namespaces.push_back(ND->getName().str());
   }
   std::reverse(Namespaces.begin(), Namespaces.end());
   return Namespaces;
 }
 
-tooling::Replacements
+clang::tooling::Replacements
 createInsertedReplacements(const std::vector<std::string> &Includes,
                            const std::vector<const NamedDecl *> &Decls,
                            llvm::StringRef FileName, bool IsHeader = false,
@@ -454,7 +463,8 @@ createInsertedReplacements(const std::vector<std::string> &Includes,
 
   if (IsHeader)
     NewCode += "\n#endif // " + GuardName + "\n";
-  return tooling::Replacements(tooling::Replacement(FileName, 0, 0, NewCode));
+  return clang::tooling::Replacements(
+      clang::tooling::Replacement(FileName, 0, 0, NewCode));
 }
 
 // Return a set of all decls which are used/referenced by the given Decls.
@@ -478,8 +488,8 @@ getUsedDecls(const HelperDeclRefGraph *RG,
 
 } // namespace
 
-std::unique_ptr<ASTConsumer>
-ClangMoveAction::CreateASTConsumer(CompilerInstance &Compiler,
+std::unique_ptr<clang::ASTConsumer>
+ClangMoveAction::CreateASTConsumer(clang::CompilerInstance &Compiler,
                                    StringRef /*InFile*/) {
   Compiler.getPreprocessor().addPPCallbacks(llvm::make_unique<FindAllIncludes>(
       &Compiler.getSourceManager(), &MoveTool));
@@ -548,8 +558,7 @@ void ClangMoveTool::registerMatchers(ast_matchers::MatchFinder *Finder) {
   // namespace, these decls are always copied to new.h/cc. Those in classes,
   // functions are covered in other matchers.
   Finder->addMatcher(namedDecl(anyOf(usingDecl(IsOldCCTopLevelDecl),
-                                     usingDirectiveDecl(unless(isImplicit()),
-                                                        IsOldCCTopLevelDecl),
+                                     usingDirectiveDecl(IsOldCCTopLevelDecl),
                                      typeAliasDecl(IsOldCCTopLevelDecl)),
                                notInMacro())
                          .bind("using_decl"),
@@ -663,10 +672,11 @@ void ClangMoveTool::registerMatchers(ast_matchers::MatchFinder *Finder) {
 }
 
 void ClangMoveTool::run(const ast_matchers::MatchFinder::MatchResult &Result) {
-  if (const auto *D = Result.Nodes.getNodeAs<NamedDecl>("decls_in_header")) {
+  if (const auto *D =
+          Result.Nodes.getNodeAs<clang::NamedDecl>("decls_in_header")) {
     UnremovedDeclsInOldHeader.insert(D);
   } else if (const auto *FWD =
-                 Result.Nodes.getNodeAs<CXXRecordDecl>("fwd_decl")) {
+                 Result.Nodes.getNodeAs<clang::CXXRecordDecl>("fwd_decl")) {
     // Skip all forward declarations which appear after moved class declaration.
     if (RemovedDecls.empty()) {
       if (const auto *DCT = FWD->getDescribedClassTemplate())
@@ -675,12 +685,13 @@ void ClangMoveTool::run(const ast_matchers::MatchFinder::MatchResult &Result) {
         MovedDecls.push_back(FWD);
     }
   } else if (const auto *ND =
-                 Result.Nodes.getNodeAs<NamedDecl>("helper_decls")) {
+                 Result.Nodes.getNodeAs<clang::NamedDecl>("helper_decls")) {
     MovedDecls.push_back(ND);
     HelperDeclarations.push_back(ND);
     LLVM_DEBUG(llvm::dbgs() << "Add helper : " << ND->getNameAsString() << " ("
                             << ND << ")\n");
-  } else if (const auto *UD = Result.Nodes.getNodeAs<NamedDecl>("using_decl")) {
+  } else if (const auto *UD =
+                 Result.Nodes.getNodeAs<clang::NamedDecl>("using_decl")) {
     MovedDecls.push_back(UD);
   }
 }
@@ -692,7 +703,7 @@ std::string ClangMoveTool::makeAbsolutePath(StringRef Path) {
 void ClangMoveTool::addIncludes(llvm::StringRef IncludeHeader, bool IsAngled,
                                 llvm::StringRef SearchPath,
                                 llvm::StringRef FileName,
-                                CharSourceRange IncludeFilenameRange,
+                                clang::CharSourceRange IncludeFilenameRange,
                                 const SourceManager &SM) {
   SmallVector<char, 128> HeaderWithSearchPath;
   llvm::sys::path::append(HeaderWithSearchPath, SearchPath, IncludeHeader);
@@ -752,8 +763,9 @@ void ClangMoveTool::removeDeclsInOldFiles() {
   for (const auto *RemovedDecl : RemovedDecls) {
     const auto &SM = RemovedDecl->getASTContext().getSourceManager();
     auto Range = getFullRange(RemovedDecl);
-    tooling::Replacement RemoveReplacement(
-        SM, CharSourceRange::getCharRange(Range.getBegin(), Range.getEnd()),
+    clang::tooling::Replacement RemoveReplacement(
+        SM,
+        clang::CharSourceRange::getCharRange(Range.getBegin(), Range.getEnd()),
         "");
     std::string FilePath = RemoveReplacement.getFilePath().str();
     auto Err = Context->FileToReplacements[FilePath].add(RemoveReplacement);
@@ -783,8 +795,7 @@ void ClangMoveTool::removeDeclsInOldFiles() {
     // Ignore replacements for new.h/cc.
     if (SI == FilePathToFileID.end()) continue;
     llvm::StringRef Code = SM.getBufferData(SI->second);
-    auto Style = format::getStyle(format::DefaultFormatStyle, FilePath,
-                                  Context->FallbackStyle);
+    auto Style = format::getStyle("file", FilePath, Context->FallbackStyle);
     if (!Style) {
       llvm::errs() << llvm::toString(Style.takeError()) << "\n";
       continue;
@@ -855,18 +866,20 @@ void ClangMoveTool::moveAll(SourceManager &SM, StringRef OldFile,
   FileID ID = SM.getOrCreateFileID(FE, SrcMgr::C_User);
   auto Begin = SM.getLocForStartOfFile(ID);
   auto End = SM.getLocForEndOfFile(ID);
-  tooling::Replacement RemoveAll(SM, CharSourceRange::getCharRange(Begin, End),
-                                 "");
+  clang::tooling::Replacement RemoveAll (
+      SM, clang::CharSourceRange::getCharRange(Begin, End), "");
   std::string FilePath = RemoveAll.getFilePath().str();
-  Context->FileToReplacements[FilePath] = tooling::Replacements(RemoveAll);
+  Context->FileToReplacements[FilePath] =
+      clang::tooling::Replacements(RemoveAll);
 
   StringRef Code = SM.getBufferData(ID);
   if (!NewFile.empty()) {
-    auto AllCode =
-        tooling::Replacements(tooling::Replacement(NewFile, 0, 0, Code));
-    auto ReplaceOldInclude = [&](CharSourceRange OldHeaderIncludeRange) {
-      AllCode = AllCode.merge(tooling::Replacements(tooling::Replacement(
-          SM, OldHeaderIncludeRange, '"' + Context->Spec.NewHeader + '"')));
+    auto AllCode = clang::tooling::Replacements(
+        clang::tooling::Replacement(NewFile, 0, 0, Code));
+    auto ReplaceOldInclude = [&](clang::CharSourceRange OldHeaderIncludeRange) {
+      AllCode = AllCode.merge(clang::tooling::Replacements(
+          clang::tooling::Replacement(SM, OldHeaderIncludeRange,
+                                      '"' + Context->Spec.NewHeader + '"')));
     };
     // Fix the case where old.h/old.cc includes "old.h", we replace the
     // `#include "old.h"` with `#include "new.h"`.
@@ -884,21 +897,21 @@ void ClangMoveTool::onEndOfTranslationUnit() {
     assert(Reporter);
     for (const auto *Decl : UnremovedDeclsInOldHeader) {
       auto Kind = Decl->getKind();
-      bool Templated = Decl->isTemplated();
       const std::string QualifiedName = Decl->getQualifiedNameAsString();
       if (Kind == Decl::Kind::Var)
-        Reporter->reportDeclaration(QualifiedName, "Variable", Templated);
+        Reporter->reportDeclaration(QualifiedName, "Variable");
       else if (Kind == Decl::Kind::Function ||
                Kind == Decl::Kind::FunctionTemplate)
-        Reporter->reportDeclaration(QualifiedName, "Function", Templated);
+        Reporter->reportDeclaration(QualifiedName, "Function");
       else if (Kind == Decl::Kind::ClassTemplate ||
                Kind == Decl::Kind::CXXRecord)
-        Reporter->reportDeclaration(QualifiedName, "Class", Templated);
+        Reporter->reportDeclaration(QualifiedName, "Class");
       else if (Kind == Decl::Kind::Enum)
-        Reporter->reportDeclaration(QualifiedName, "Enum", Templated);
-      else if (Kind == Decl::Kind::Typedef || Kind == Decl::Kind::TypeAlias ||
+        Reporter->reportDeclaration(QualifiedName, "Enum");
+      else if (Kind == Decl::Kind::Typedef ||
+               Kind == Decl::Kind::TypeAlias ||
                Kind == Decl::Kind::TypeAliasTemplate)
-        Reporter->reportDeclaration(QualifiedName, "TypeAlias", Templated);
+        Reporter->reportDeclaration(QualifiedName, "TypeAlias");
     }
     return;
   }
@@ -908,7 +921,7 @@ void ClangMoveTool::onEndOfTranslationUnit() {
   // Ignore symbols that are not supported when checking if there is unremoved
   // symbol in old header. This makes sure that we always move old files to new
   // files when all symbols produced from dump_decls are moved.
-  auto IsSupportedKind = [](const NamedDecl *Decl) {
+  auto IsSupportedKind = [](const clang::NamedDecl *Decl) {
     switch (Decl->getKind()) {
     case Decl::Kind::Function:
     case Decl::Kind::FunctionTemplate:

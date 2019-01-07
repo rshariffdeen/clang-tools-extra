@@ -83,9 +83,6 @@ runCheckOnCode(StringRef Code, std::vector<ClangTidyError> *Errors = nullptr,
   ClangTidyContext Context(llvm::make_unique<DefaultOptionsProvider>(
       ClangTidyGlobalOptions(), Options));
   ClangTidyDiagnosticConsumer DiagConsumer(Context);
-  DiagnosticsEngine DE(new DiagnosticIDs(), new DiagnosticOptions,
-                       &DiagConsumer, false);
-  Context.setDiagnosticsEngine(&DE);
 
   std::vector<std::string> Args(1, "clang-tidy");
   Args.push_back("-fsyntax-only");
@@ -102,8 +99,8 @@ runCheckOnCode(StringRef Code, std::vector<ClangTidyError> *Errors = nullptr,
   Args.push_back(Filename.str());
 
   ast_matchers::MatchFinder Finder;
-  llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
-      new llvm::vfs::InMemoryFileSystem);
+  llvm::IntrusiveRefCntPtr<vfs::InMemoryFileSystem> InMemoryFileSystem(
+      new vfs::InMemoryFileSystem);
   llvm::IntrusiveRefCntPtr<FileManager> Files(
       new FileManager(FileSystemOptions(), InMemoryFileSystem));
 
@@ -121,15 +118,15 @@ runCheckOnCode(StringRef Code, std::vector<ClangTidyError> *Errors = nullptr,
   Invocation.setDiagnosticConsumer(&DiagConsumer);
   if (!Invocation.run()) {
     std::string ErrorText;
-    for (const auto &Error : DiagConsumer.take()) {
+    for (const auto &Error : Context.getErrors()) {
       ErrorText += Error.Message.Message + "\n";
     }
     llvm::report_fatal_error(ErrorText);
   }
 
+  DiagConsumer.finish();
   tooling::Replacements Fixes;
-  std::vector<ClangTidyError> Diags = DiagConsumer.take();
-  for (const ClangTidyError &Error : Diags) {
+  for (const ClangTidyError &Error : Context.getErrors()) {
     for (const auto &FileAndFixes : Error.Fix) {
       for (const auto &Fix : FileAndFixes.second) {
         auto Err = Fixes.add(Fix);
@@ -142,7 +139,7 @@ runCheckOnCode(StringRef Code, std::vector<ClangTidyError> *Errors = nullptr,
     }
   }
   if (Errors)
-    *Errors = std::move(Diags);
+    *Errors = Context.getErrors();
   auto Result = tooling::applyAllReplacements(Code, Fixes);
   if (!Result) {
     // FIXME: propogate the error.

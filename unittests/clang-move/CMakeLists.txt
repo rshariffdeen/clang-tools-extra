@@ -24,7 +24,6 @@ target_link_libraries(ClangMoveTests
   clangFrontend
   clangMove
   clangRewrite
-  clangSerialization
   clangTooling
   clangToolingCore
   )

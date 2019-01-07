@@ -20,8 +20,6 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(MemberTypeInfo)
 LLVM_YAML_IS_SEQUENCE_VECTOR(Reference)
 LLVM_YAML_IS_SEQUENCE_VECTOR(Location)
 LLVM_YAML_IS_SEQUENCE_VECTOR(CommentInfo)
-LLVM_YAML_IS_SEQUENCE_VECTOR(FunctionInfo)
-LLVM_YAML_IS_SEQUENCE_VECTOR(EnumInfo)
 LLVM_YAML_IS_SEQUENCE_VECTOR(std::unique_ptr<CommentInfo>)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::SmallString<16>)
 
@@ -177,14 +175,7 @@ template <> struct MappingTraits<MemberTypeInfo> {
 };
 
 template <> struct MappingTraits<NamespaceInfo> {
-  static void mapping(IO &IO, NamespaceInfo &I) {
-    InfoMapping(IO, I);
-    IO.mapOptional("ChildNamespaces", I.ChildNamespaces,
-                   std::vector<Reference>());
-    IO.mapOptional("ChildRecords", I.ChildRecords, std::vector<Reference>());
-    IO.mapOptional("ChildFunctions", I.ChildFunctions);
-    IO.mapOptional("ChildEnums", I.ChildEnums);
-  }
+  static void mapping(IO &IO, NamespaceInfo &I) { InfoMapping(IO, I); }
 };
 
 template <> struct MappingTraits<RecordInfo> {
@@ -195,9 +186,6 @@ template <> struct MappingTraits<RecordInfo> {
     IO.mapOptional("Parents", I.Parents, llvm::SmallVector<Reference, 4>());
     IO.mapOptional("VirtualParents", I.VirtualParents,
                    llvm::SmallVector<Reference, 4>());
-    IO.mapOptional("ChildRecords", I.ChildRecords, std::vector<Reference>());
-    IO.mapOptional("ChildFunctions", I.ChildFunctions);
-    IO.mapOptional("ChildEnums", I.ChildEnums);
   }
 };
 
@@ -242,12 +230,12 @@ class YAMLGenerator : public Generator {
 public:
   static const char *Format;
 
-  llvm::Error generateDocForInfo(Info *I, llvm::raw_ostream &OS) override;
+  bool generateDocForInfo(Info *I, llvm::raw_ostream &OS) override;
 };
 
 const char *YAMLGenerator::Format = "yaml";
 
-llvm::Error YAMLGenerator::generateDocForInfo(Info *I, llvm::raw_ostream &OS) {
+bool YAMLGenerator::generateDocForInfo(Info *I, llvm::raw_ostream &OS) {
   llvm::yaml::Output InfoYAML(OS);
   switch (I->IT) {
   case InfoType::IT_namespace:
@@ -263,10 +251,10 @@ llvm::Error YAMLGenerator::generateDocForInfo(Info *I, llvm::raw_ostream &OS) {
     InfoYAML << *static_cast<clang::doc::FunctionInfo *>(I);
     break;
   case InfoType::IT_default:
-    return llvm::make_error<llvm::StringError>("Unexpected info type.\n",
-                                               llvm::inconvertibleErrorCode());
+    llvm::errs() << "Unexpected info type in index.\n";
+    return true;
   }
-  return llvm::Error::success();
+  return false;
 }
 
 static GeneratorRegistry::Add<YAMLGenerator> YAML(YAMLGenerator::Format,

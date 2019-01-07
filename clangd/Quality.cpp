@@ -1,40 +1,31 @@
-//===--- Quality.cpp ---------------------------------------------*- C++-*-===//
+//===--- Quality.cpp --------------------------------------------*- C++-*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
 // This file is distributed under the University of Illinois Open Source
 // License. See LICENSE.TXT for details.
 //
-//===----------------------------------------------------------------------===//
+//===---------------------------------------------------------------------===//
 #include "Quality.h"
-#include "AST.h"
 #include "FileDistance.h"
 #include "URI.h"
 #include "index/Index.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
-#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclVisitor.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cmath>
 
-using namespace llvm;
 namespace clang {
 namespace clangd {
-static bool isReserved(StringRef Name) {
+using namespace llvm;
+static bool IsReserved(StringRef Name) {
   // FIXME: Should we exclude _Bool and others recognized by the standard?
   return Name.size() >= 2 && Name[0] == '_' &&
          (isUppercase(Name[1]) || Name[1] == '_');
@@ -50,22 +41,7 @@ static bool hasDeclInMainFile(const Decl &D) {
   return false;
 }
 
-static bool hasUsingDeclInMainFile(const CodeCompletionResult &R) {
-  const auto &Context = R.Declaration->getASTContext();
-  const auto &SourceMgr = Context.getSourceManager();
-  if (R.ShadowDecl) {
-    const auto Loc = SourceMgr.getExpansionLoc(R.ShadowDecl->getLocation());
-    if (SourceMgr.isWrittenInMainFile(Loc))
-      return true;
-  }
-  return false;
-}
-
 static SymbolQualitySignals::SymbolCategory categorize(const NamedDecl &ND) {
-  if (const auto *FD = dyn_cast<FunctionDecl>(&ND)) {
-    if (FD->isOverloadedOperator())
-      return SymbolQualitySignals::Operator;
-  }
   class Switch
       : public ConstDeclVisitor<Switch, SymbolQualitySignals::SymbolCategory> {
   public:
@@ -78,8 +54,6 @@ static SymbolQualitySignals::SymbolCategory categorize(const NamedDecl &ND) {
     MAP(TypeDecl, Type);
     MAP(TypeAliasTemplateDecl, Type);
     MAP(ClassTemplateDecl, Type);
-    MAP(CXXConstructorDecl, Constructor);
-    MAP(CXXDestructorDecl, Destructor);
     MAP(ValueDecl, Variable);
     MAP(VarTemplateDecl, Variable);
     MAP(FunctionDecl, Function);
@@ -109,8 +83,6 @@ categorize(const CodeCompletionResult &R) {
     return SymbolQualitySignals::Type;
   case CXCursor_MemberRef:
     return SymbolQualitySignals::Variable;
-  case CXCursor_Constructor:
-    return SymbolQualitySignals::Constructor;
   default:
     return SymbolQualitySignals::Keyword;
   }
@@ -139,12 +111,10 @@ categorize(const index::SymbolInfo &D) {
   case index::SymbolKind::InstanceProperty:
   case index::SymbolKind::ClassProperty:
   case index::SymbolKind::StaticProperty:
+  case index::SymbolKind::Constructor:
+  case index::SymbolKind::Destructor:
   case index::SymbolKind::ConversionFunction:
     return SymbolQualitySignals::Function;
-  case index::SymbolKind::Destructor:
-    return SymbolQualitySignals::Destructor;
-  case index::SymbolKind::Constructor:
-    return SymbolQualitySignals::Constructor;
   case index::SymbolKind::Variable:
   case index::SymbolKind::Field:
   case index::SymbolKind::EnumConstant:
@@ -158,45 +128,23 @@ categorize(const index::SymbolInfo &D) {
   llvm_unreachable("Unknown index::SymbolKind");
 }
 
-static bool isInstanceMember(const NamedDecl *ND) {
-  if (!ND)
-    return false;
-  if (const auto *TP = dyn_cast<FunctionTemplateDecl>(ND))
-    ND = TP->TemplateDecl::getTemplatedDecl();
-  if (const auto *CM = dyn_cast<CXXMethodDecl>(ND))
-    return !CM->isStatic();
-  return isa<FieldDecl>(ND); // Note that static fields are VarDecl.
-}
-
-static bool isInstanceMember(const index::SymbolInfo &D) {
-  switch (D.Kind) {
-  case index::SymbolKind::InstanceMethod:
-  case index::SymbolKind::InstanceProperty:
-  case index::SymbolKind::Field:
-    return true;
-  default:
-    return false;
-  }
-}
-
 void SymbolQualitySignals::merge(const CodeCompletionResult &SemaCCResult) {
-  Deprecated |= (SemaCCResult.Availability == CXAvailability_Deprecated);
+  if (SemaCCResult.Availability == CXAvailability_Deprecated)
+    Deprecated = true;
+
   Category = categorize(SemaCCResult);
 
   if (SemaCCResult.Declaration) {
-    ImplementationDetail |= isImplementationDetail(SemaCCResult.Declaration);
     if (auto *ID = SemaCCResult.Declaration->getIdentifier())
-      ReservedName = ReservedName || isReserved(ID->getName());
+      ReservedName = ReservedName || IsReserved(ID->getName());
   } else if (SemaCCResult.Kind == CodeCompletionResult::RK_Macro)
-    ReservedName = ReservedName || isReserved(SemaCCResult.Macro->getName());
+    ReservedName = ReservedName || IsReserved(SemaCCResult.Macro->getName());
 }
 
 void SymbolQualitySignals::merge(const Symbol &IndexResult) {
-  Deprecated |= (IndexResult.Flags & Symbol::Deprecated);
-  ImplementationDetail |= (IndexResult.Flags & Symbol::ImplementationDetail);
   References = std::max(IndexResult.References, References);
   Category = categorize(IndexResult.SymInfo);
-  ReservedName = ReservedName || isReserved(IndexResult.Name);
+  ReservedName = ReservedName || IsReserved(IndexResult.Name);
 }
 
 float SymbolQualitySignals::evaluate() const {
@@ -204,25 +152,13 @@ float SymbolQualitySignals::evaluate() const {
 
   // This avoids a sharp gradient for tail symbols, and also neatly avoids the
   // question of whether 0 references means a bad symbol or missing data.
-  if (References >= 10) {
-    // Use a sigmoid style boosting function, which flats out nicely for large
-    // numbers (e.g. 2.58 for 1M refererences).
-    // The following boosting function is equivalent to:
-    //   m = 0.06
-    //   f = 12.0
-    //   boost = f * sigmoid(m * std::log(References)) - 0.5 * f + 0.59
-    // Sample data points: (10, 1.00), (100, 1.41), (1000, 1.82),
-    //                     (10K, 2.21), (100K, 2.58), (1M, 2.94)
-    float S = std::pow(References, -0.06);
-    Score *= 6.0 * (1 - S) / (1 + S) + 0.59;
-  }
+  if (References >= 10)
+    Score *= std::log10(References);
 
   if (Deprecated)
     Score *= 0.1f;
   if (ReservedName)
     Score *= 0.1f;
-  if (ImplementationDetail)
-    Score *= 0.2f;
 
   switch (Category) {
   case Keyword: // Often relevant, but misses most signals.
@@ -237,11 +173,8 @@ float SymbolQualitySignals::evaluate() const {
     Score *= 0.8f;
     break;
   case Macro:
-  case Destructor:
-  case Operator:
-    Score *= 0.5f;
+    Score *= 0.2f;
     break;
-  case Constructor: // No boost constructors so they are after class types.
   case Unknown:
     break;
   }
@@ -259,7 +192,7 @@ raw_ostream &operator<<(raw_ostream &OS, const SymbolQualitySignals &S) {
 }
 
 static SymbolRelevanceSignals::AccessibleScope
-computeScope(const NamedDecl *D) {
+ComputeScope(const NamedDecl *D) {
   // Injected "Foo" within the class "Foo" has file scope, not class scope.
   const DeclContext *DC = D->getDeclContext();
   if (auto *R = dyn_cast_or_null<RecordDecl>(D))
@@ -287,8 +220,6 @@ void SymbolRelevanceSignals::merge(const Symbol &IndexResult) {
   // relevant to non-completion requests, we should recognize class members etc.
 
   SymbolURI = IndexResult.CanonicalDeclaration.FileURI;
-  SymbolScope = IndexResult.Scope;
-  IsInstanceMember |= isInstanceMember(IndexResult.SymInfo);
 }
 
 void SymbolRelevanceSignals::merge(const CodeCompletionResult &SemaCCResult) {
@@ -297,43 +228,26 @@ void SymbolRelevanceSignals::merge(const CodeCompletionResult &SemaCCResult) {
     Forbidden = true;
 
   if (SemaCCResult.Declaration) {
-    SemaSaysInScope = true;
     // We boost things that have decls in the main file. We give a fixed score
     // for all other declarations in sema as they are already included in the
     // translation unit.
-    float DeclProximity = (hasDeclInMainFile(*SemaCCResult.Declaration) ||
-                           hasUsingDeclInMainFile(SemaCCResult))
-                              ? 1.0
-                              : 0.6;
-    SemaFileProximityScore = std::max(DeclProximity, SemaFileProximityScore);
-    IsInstanceMember |= isInstanceMember(SemaCCResult.Declaration);
-    InBaseClass |= SemaCCResult.InBaseClass;
+    float DeclProximity =
+        hasDeclInMainFile(*SemaCCResult.Declaration) ? 1.0 : 0.6;
+    SemaProximityScore = std::max(DeclProximity, SemaProximityScore);
   }
 
   // Declarations are scoped, others (like macros) are assumed global.
   if (SemaCCResult.Declaration)
-    Scope = std::min(Scope, computeScope(SemaCCResult.Declaration));
-
-  NeedsFixIts = !SemaCCResult.FixIts.empty();
+    Scope = std::min(Scope, ComputeScope(SemaCCResult.Declaration));
 }
 
-static std::pair<float, unsigned> uriProximity(StringRef SymbolURI,
-                                               URIDistance *D) {
+static std::pair<float, unsigned> proximityScore(llvm::StringRef SymbolURI,
+                                                 URIDistance *D) {
   if (!D || SymbolURI.empty())
     return {0.f, 0u};
   unsigned Distance = D->distance(SymbolURI);
   // Assume approximately default options are used for sensible scoring.
   return {std::exp(Distance * -0.4f / FileDistanceOptions().UpCost), Distance};
-}
-
-static float scopeBoost(ScopeDistance &Distance,
-                        Optional<StringRef> SymbolScope) {
-  if (!SymbolScope)
-    return 1;
-  auto D = Distance.distance(*SymbolScope);
-  if (D == FileDistance::Unreachable)
-    return 0.6f;
-  return std::max(0.65, 2.0 * std::pow(0.6, D / 2.0));
 }
 
 float SymbolRelevanceSignals::evaluate() const {
@@ -344,18 +258,10 @@ float SymbolRelevanceSignals::evaluate() const {
 
   Score *= NameMatch;
 
-  // File proximity scores are [0,1] and we translate them into a multiplier in
-  // the range from 1 to 3.
-  Score *= 1 + 2 * std::max(uriProximity(SymbolURI, FileProximityMatch).first,
-                            SemaFileProximityScore);
-
-  if (ScopeProximityMatch)
-    // Use a constant scope boost for sema results, as scopes of sema results
-    // can be tricky (e.g. class/function scope). Set to the max boost as we
-    // don't load top-level symbols from the preamble and sema results are
-    // always in the accessible scope.
-    Score *=
-        SemaSaysInScope ? 2.0 : scopeBoost(*ScopeProximityMatch, SymbolScope);
+  // Proximity scores are [0,1] and we translate them into a multiplier in the
+  // range from 1 to 3.
+  Score *= 1 + 2 * std::max(proximityScore(SymbolURI, FileProximityMatch).first,
+                            SemaProximityScore);
 
   // Symbols like local variables may only be referenced within their scope.
   // Conversely if we're in that scope, it's likely we'll reference them.
@@ -377,23 +283,6 @@ float SymbolRelevanceSignals::evaluate() const {
     }
   }
 
-  if (TypeMatchesPreferred)
-    Score *= 5.0;
-
-  // Penalize non-instance members when they are accessed via a class instance.
-  if (!IsInstanceMember &&
-      (Context == CodeCompletionContext::CCC_DotMemberAccess ||
-       Context == CodeCompletionContext::CCC_ArrowMemberAccess)) {
-    Score *= 0.2f;
-  }
-
-  if (InBaseClass)
-    Score *= 0.5f;
-
-  // Penalize for FixIts.
-  if (NeedsFixIts)
-    Score *= 0.5f;
-
   return Score;
 }
 
@@ -401,32 +290,15 @@ raw_ostream &operator<<(raw_ostream &OS, const SymbolRelevanceSignals &S) {
   OS << formatv("=== Symbol relevance: {0}\n", S.evaluate());
   OS << formatv("\tName match: {0}\n", S.NameMatch);
   OS << formatv("\tForbidden: {0}\n", S.Forbidden);
-  OS << formatv("\tNeedsFixIts: {0}\n", S.NeedsFixIts);
-  OS << formatv("\tIsInstanceMember: {0}\n", S.IsInstanceMember);
-  OS << formatv("\tContext: {0}\n", getCompletionKindString(S.Context));
-  OS << formatv("\tQuery type: {0}\n", static_cast<int>(S.Query));
-  OS << formatv("\tScope: {0}\n", static_cast<int>(S.Scope));
-
   OS << formatv("\tSymbol URI: {0}\n", S.SymbolURI);
-  OS << formatv("\tSymbol scope: {0}\n",
-                S.SymbolScope ? *S.SymbolScope : "<None>");
-
   if (S.FileProximityMatch) {
-    auto Score = uriProximity(S.SymbolURI, S.FileProximityMatch);
-    OS << formatv("\tIndex URI proximity: {0} (distance={1})\n", Score.first,
+    auto Score = proximityScore(S.SymbolURI, S.FileProximityMatch);
+    OS << formatv("\tIndex proximity: {0} (distance={1})\n", Score.first,
                   Score.second);
   }
-  OS << formatv("\tSema file proximity: {0}\n", S.SemaFileProximityScore);
-
-  OS << formatv("\tSema says in scope: {0}\n", S.SemaSaysInScope);
-  if (S.ScopeProximityMatch)
-    OS << formatv("\tIndex scope boost: {0}\n",
-                  scopeBoost(*S.ScopeProximityMatch, S.SymbolScope));
-
-  OS << formatv(
-      "\tType matched preferred: {0} (Context type: {1}, Symbol type: {2}\n",
-      S.TypeMatchesPreferred, S.HadContextType, S.HadSymbolType);
-
+  OS << formatv("\tSema proximity: {0}\n", S.SemaProximityScore);
+  OS << formatv("\tQuery type: {0}\n", static_cast<int>(S.Query));
+  OS << formatv("\tScope: {0}\n", static_cast<int>(S.Scope));
   return OS;
 }
 
@@ -448,27 +320,16 @@ static uint32_t encodeFloat(float F) {
   return U + TopBit; // Positive floats map onto the high half of integers.
 }
 
-std::string sortText(float Score, StringRef Name) {
+std::string sortText(float Score, llvm::StringRef Name) {
   // We convert -Score to an integer, and hex-encode for readability.
   // Example: [0.5, "foo"] -> "41000000foo"
   std::string S;
-  raw_string_ostream OS(S);
-  write_hex(OS, encodeFloat(-Score), HexPrintStyle::Lower,
+  llvm::raw_string_ostream OS(S);
+  write_hex(OS, encodeFloat(-Score), llvm::HexPrintStyle::Lower,
             /*Width=*/2 * sizeof(Score));
   OS << Name;
   OS.flush();
   return S;
-}
-
-raw_ostream &operator<<(raw_ostream &OS, const SignatureQualitySignals &S) {
-  OS << formatv("=== Signature Quality:\n");
-  OS << formatv("\tNumber of parameters: {0}\n", S.NumberOfParameters);
-  OS << formatv("\tNumber of optional parameters: {0}\n",
-                S.NumberOfOptionalParameters);
-  OS << formatv("\tContains active parameter: {0}\n",
-                S.ContainsActiveParameter);
-  OS << formatv("\tKind: {0}\n", S.Kind);
-  return OS;
 }
 
 } // namespace clangd

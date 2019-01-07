@@ -125,7 +125,7 @@ public:
   }
 
   bool VisitStmt(Stmt *S) {
-    if (SM.getFileLoc(S->getBeginLoc()) != CastLoc)
+    if (SM.getFileLoc(S->getLocStart()) != CastLoc)
       return true;
     Visited = true;
 
@@ -214,8 +214,8 @@ public:
       return true;
     }
 
-    SourceLocation StartLoc = FirstSubExpr->getBeginLoc();
-    SourceLocation EndLoc = FirstSubExpr->getEndLoc();
+    SourceLocation StartLoc = FirstSubExpr->getLocStart();
+    SourceLocation EndLoc = FirstSubExpr->getLocEnd();
 
     // If the location comes from a macro arg expansion, *all* uses of that
     // arg must be checked to result in NullTo(Member)Pointer casts.
@@ -269,7 +269,7 @@ private:
   /// \brief Tests that all expansions of a macro arg, one of which expands to
   /// result in \p CE, yield NullTo(Member)Pointer casts.
   bool allArgUsesValid(const CastExpr *CE) {
-    SourceLocation CastLoc = CE->getBeginLoc();
+    SourceLocation CastLoc = CE->getLocStart();
 
     // Step 1: Get location of macro arg and location of the macro the arg was
     // provided to.
@@ -437,9 +437,9 @@ private:
 
       SourceLocation Loc;
       if (const auto *D = Parent.get<Decl>())
-        Loc = D->getBeginLoc();
+        Loc = D->getLocStart();
       else if (const auto *S = Parent.get<Stmt>())
-        Loc = S->getBeginLoc();
+        Loc = S->getLocStart();
 
       // TypeLoc and NestedNameSpecifierLoc are members of the parent map. Skip
       // them and keep going up.

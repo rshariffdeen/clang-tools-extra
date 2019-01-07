@@ -24,7 +24,6 @@ target_link_libraries(ChangeNamespaceTests
   clangFormat
   clangFrontend
   clangRewrite
-  clangSerialization
   clangTooling
   clangToolingCore
   )

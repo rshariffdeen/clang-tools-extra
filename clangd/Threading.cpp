@@ -3,13 +3,8 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Threading.h"
-#include <atomic>
 #include <thread>
-#ifdef __USE_POSIX
-#include <pthread.h>
-#endif
 
-using namespace llvm;
 namespace clang {
 namespace clangd {
 
@@ -27,15 +22,6 @@ void Notification::wait() const {
 }
 
 Semaphore::Semaphore(std::size_t MaxLocks) : FreeSlots(MaxLocks) {}
-
-bool Semaphore::try_lock() {
-  std::unique_lock<std::mutex> Lock(Mutex);
-  if (FreeSlots > 0) {
-    --FreeSlots;
-    return true;
-  }
-  return false;
-}
 
 void Semaphore::lock() {
   trace::Span Span("WaitForFreeSemaphoreSlot");
@@ -64,14 +50,14 @@ bool AsyncTaskRunner::wait(Deadline D) const {
                       [&] { return InFlightTasks == 0; });
 }
 
-void AsyncTaskRunner::runAsync(const Twine &Name,
-                               unique_function<void()> Action) {
+void AsyncTaskRunner::runAsync(llvm::Twine Name,
+                               llvm::unique_function<void()> Action) {
   {
     std::lock_guard<std::mutex> Lock(Mutex);
     ++InFlightTasks;
   }
 
-  auto CleanupTask = make_scope_exit([this]() {
+  auto CleanupTask = llvm::make_scope_exit([this]() {
     std::lock_guard<std::mutex> Lock(Mutex);
     int NewTasksCnt = --InFlightTasks;
     if (NewTasksCnt == 0) {
@@ -83,7 +69,7 @@ void AsyncTaskRunner::runAsync(const Twine &Name,
 
   std::thread(
       [](std::string Name, decltype(Action) Action, decltype(CleanupTask)) {
-        set_thread_name(Name);
+        llvm::set_thread_name(Name);
         Action();
         // Make sure function stored by Action is destroyed before CleanupTask
         // is run.
@@ -93,7 +79,7 @@ void AsyncTaskRunner::runAsync(const Twine &Name,
       .detach();
 }
 
-Deadline timeoutSeconds(Optional<double> Seconds) {
+Deadline timeoutSeconds(llvm::Optional<double> Seconds) {
   using namespace std::chrono;
   if (!Seconds)
     return Deadline::infinity();
@@ -109,23 +95,6 @@ void wait(std::unique_lock<std::mutex> &Lock, std::condition_variable &CV,
     return CV.wait(Lock);
   CV.wait_until(Lock, D.time());
 }
-
-static std::atomic<bool> AvoidThreadStarvation = {false};
-
-void setCurrentThreadPriority(ThreadPriority Priority) {
-  // Some *really* old glibcs are missing SCHED_IDLE.
-#if defined(__linux__) && defined(SCHED_IDLE)
-  sched_param priority;
-  priority.sched_priority = 0;
-  pthread_setschedparam(
-      pthread_self(),
-      Priority == ThreadPriority::Low && !AvoidThreadStarvation ? SCHED_IDLE
-                                                                : SCHED_OTHER,
-      &priority);
-#endif
-}
-
-void preventThreadStarvationInTests() { AvoidThreadStarvation = true; }
 
 } // namespace clangd
 } // namespace clang

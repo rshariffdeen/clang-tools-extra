@@ -102,7 +102,7 @@ void AssertSideEffectCheck::registerMatchers(MatchFinder *Finder) {
 void AssertSideEffectCheck::check(const MatchFinder::MatchResult &Result) {
   const SourceManager &SM = *Result.SourceManager;
   const LangOptions LangOpts = getLangOpts();
-  SourceLocation Loc = Result.Nodes.getNodeAs<Stmt>("condStmt")->getBeginLoc();
+  SourceLocation Loc = Result.Nodes.getNodeAs<Stmt>("condStmt")->getLocStart();
 
   StringRef AssertMacroName;
   while (Loc.isValid() && Loc.isMacroID()) {

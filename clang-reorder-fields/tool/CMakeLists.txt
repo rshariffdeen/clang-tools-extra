@@ -6,7 +6,6 @@ target_link_libraries(clang-reorder-fields
   clangFrontend
   clangReorderFields
   clangRewrite
-  clangSerialization
   clangTooling
   clangToolingCore
   )

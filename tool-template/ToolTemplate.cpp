@@ -66,8 +66,8 @@ public:
     auto *D = Result.Nodes.getNodeAs<NamedDecl>("decl");
     assert(D);
     // Use AtomicChange to get a key.
-    if (D->getBeginLoc().isValid()) {
-      AtomicChange Change(*Result.SourceManager, D->getBeginLoc());
+    if (D->getLocStart().isValid()) {
+      AtomicChange Change(*Result.SourceManager, D->getLocStart());
       Context.reportResult(Change.getKey(), D->getQualifiedNameAsString());
     }
   }

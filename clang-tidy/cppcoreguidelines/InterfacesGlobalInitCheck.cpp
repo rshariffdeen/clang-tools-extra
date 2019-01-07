@@ -18,18 +18,18 @@ namespace tidy {
 namespace cppcoreguidelines {
 
 void InterfacesGlobalInitCheck::registerMatchers(MatchFinder *Finder) {
-  const auto GlobalVarDecl =
-      varDecl(hasGlobalStorage(),
-              hasDeclContext(anyOf(translationUnitDecl(), // Global scope.
-                                   namespaceDecl(),       // Namespace scope.
-                                   recordDecl())),        // Class scope.
-              unless(isConstexpr()));
+  const auto IsGlobal =
+      allOf(hasGlobalStorage(),
+            hasDeclContext(anyOf(translationUnitDecl(), // Global scope.
+                                 namespaceDecl(),       // Namespace scope.
+                                 recordDecl())),        // Class scope.
+            unless(isConstexpr()));
 
   const auto ReferencesUndefinedGlobalVar = declRefExpr(hasDeclaration(
-      varDecl(GlobalVarDecl, unless(isDefinition())).bind("referencee")));
+      varDecl(IsGlobal, unless(isDefinition())).bind("referencee")));
 
   Finder->addMatcher(
-      varDecl(GlobalVarDecl, isDefinition(),
+      varDecl(IsGlobal, isDefinition(),
               hasInitializer(expr(hasDescendant(ReferencesUndefinedGlobalVar))))
           .bind("var"),
       this);

@@ -24,8 +24,7 @@ UseUsingCheck::UseUsingCheck(StringRef Name, ClangTidyContext *Context)
 void UseUsingCheck::registerMatchers(MatchFinder *Finder) {
   if (!getLangOpts().CPlusPlus11)
     return;
-  Finder->addMatcher(typedefDecl(unless(isInstantiated())).bind("typedef"),
-                     this);
+  Finder->addMatcher(typedefDecl().bind("typedef"), this);
 }
 
 // Checks if 'typedef' keyword can be removed - we do it only if
@@ -84,7 +83,7 @@ void UseUsingCheck::check(const MatchFinder::MatchResult &Result) {
   auto &Context = *Result.Context;
   auto &SM = *Result.SourceManager;
 
-  SourceLocation StartLoc = MatchedDecl->getBeginLoc();
+  SourceLocation StartLoc = MatchedDecl->getLocStart();
 
   if (StartLoc.isMacroID() && IgnoreMacros)
     return;
